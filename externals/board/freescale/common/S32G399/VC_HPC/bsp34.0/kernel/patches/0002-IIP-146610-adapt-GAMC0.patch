@@ -1,0 +1,36 @@
+From a133dd3e5538f2aaed61163135751482d1dcba94 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Fri, 18 Nov 2022 15:02:52 +0800
+Subject: [PATCH 1/1] IIP-146610: adapt GAMC0 for A2 XIAOMI board (flash)
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/gpio/gpio-siul2-s32cc.c | 2 --
+ 1 file changed, 2 deletions(-)
+ mode change 100644 => 100755 drivers/gpio/gpio-siul2-s32cc.c
+
+diff --git a/drivers/gpio/gpio-siul2-s32cc.c b/drivers/gpio/gpio-siul2-s32cc.c
+old mode 100644
+new mode 100755
+index 1cef2c90c..a3fd7a078
+--- a/drivers/gpio/gpio-siul2-s32cc.c
++++ b/drivers/gpio/gpio-siul2-s32cc.c
+@@ -637,7 +637,6 @@ static const struct eirq_mapping s32g_irqs[] = {
+ 	{ .gpio = 154,	.eirq = 8,	.imscr = 918,	.imscr_conf = 3 },
+ 	{ .gpio = 27,	.eirq = 8,	.imscr = 918,	.imscr_conf = 2 },
+ 	{ .gpio = 160,	.eirq = 9,	.imscr = 919,	.imscr_conf = 3 },
+-	{ .gpio = 28,	.eirq = 9,	.imscr = 919,	.imscr_conf = 2 },
+ 	{ .gpio = 165,	.eirq = 10,	.imscr = 920,	.imscr_conf = 3 },
+ 	{ .gpio = 29,	.eirq = 10,	.imscr = 920,	.imscr_conf = 2 },
+ 	{ .gpio = 168,	.eirq = 11,	.imscr = 921,	.imscr_conf = 2 },
+@@ -708,7 +707,6 @@ static const struct eirq_mapping s32r45_irqs[] = {
+ 	{ .gpio = 25,	.eirq = 16,	.imscr = 712,	.imscr_conf = 2 },
+ 	{ .gpio = 26,	.eirq = 17,	.imscr = 713,	.imscr_conf = 2 },
+ 	{ .gpio = 27,	.eirq = 18,	.imscr = 714,	.imscr_conf = 2 },
+-	{ .gpio = 28,	.eirq = 19,	.imscr = 715,	.imscr_conf = 2 },
+ 	{ .gpio = 29,	.eirq = 20,	.imscr = 716,	.imscr_conf = 2 },
+ 	{ .gpio = 30,	.eirq = 21,	.imscr = 717,	.imscr_conf = 2 },
+ 	{ .gpio = 31,	.eirq = 22,	.imscr = 718,	.imscr_conf = 2 },
+-- 
+2.35.1
+

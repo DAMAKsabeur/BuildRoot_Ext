@@ -1,0 +1,47 @@
+From 48ee617f9892c4e704d78782f8aff482f7baea60 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 15 Mar 2023 17:57:40 +0800
+Subject: [PATCH 1/1] change A53 clk
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ include/dt-bindings/clock/s32gen1-clock-freq.h | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+ mode change 100644 => 100755 include/dt-bindings/clock/s32gen1-clock-freq.h
+
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+old mode 100644
+new mode 100755
+index 48dd50e..a669ed6
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -13,8 +13,8 @@
+ #define S32GEN1_FIRC_FREQ			(48 * MHZ)
+ #define S32GEN1_LIN_BAUD_CLK_FREQ		(125 * MHZ)
+ #define S32GEN1_SDHC_CLK_FREQ			(400 * MHZ)
+-#define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
+-#define S32GEN1_DDR_FREQ			(800 * MHZ)
++#define S32GEN1_DDR_PLL_VCO_FREQ		(1600 * MHZ)
++#define S32GEN1_DDR_FREQ			(800 * MHZ)
+ #define S32GEN1_PERIPH_DFS1_FREQ		(800 * MHZ)
+ #define S32GEN1_PERIPH_DFS3_FREQ		(800 * MHZ)
+
+@@ -27,12 +27,12 @@
+ #define S32GEN1_QSPI_CLK_FREQ			    (200 * MHZ)
+
+ #elif defined(PLAT_s32g3)
+-#define S32GEN1_A53_MAX_FREQ			(1300 * MHZ)
+-#define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(2600 * MHZ)
+-#define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1300 * MHZ)
++#define S32GEN1_A53_MAX_FREQ			(1000 * MHZ)
++#define S32GEN1_ARM_PLL_VCO_MAX_FREQ		(2000 * MHZ)
++#define S32GEN1_ARM_PLL_PHI0_MAX_FREQ		(1000 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+-#define S32GEN1_QSPI_CLK_FREQ			    (200 * MHZ)
++#define S32GEN1_QSPI_CLK_FREQ			    (133333333)
+
+ #elif defined(PLAT_s32r)
+ #define S32GEN1_A53_MAX_FREQ			    (800 * MHZ)
+--
+2.35.1

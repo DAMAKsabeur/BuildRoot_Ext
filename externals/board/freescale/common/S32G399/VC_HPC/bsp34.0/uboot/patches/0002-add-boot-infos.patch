@@ -1,0 +1,275 @@
+From 7ca2509a605b27b19ac1c404d7e0254320d4d800 Mon Sep 17 00:00:00 2001
+From: "Damak Sabeur (uic56995)" <sabeur damak>
+Date: Wed, 12 Jul 2023 14:28:42 +0200
+Subject: [PATCH] add boot infos
+
+---
+ include/perf_boot_info.h      |  73 +++++++++++++++
+ lib/bootinfo/Makefile         |   3 +
+ lib/bootinfo/perf_boot_info.c | 163 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 239 insertions(+)
+ create mode 100755 include/perf_boot_info.h
+ create mode 100644 lib/bootinfo/Makefile
+ create mode 100755 lib/bootinfo/perf_boot_info.c
+
+diff --git a/include/perf_boot_info.h b/include/perf_boot_info.h
+new file mode 100755
+index 00000000..2e63959c
+--- /dev/null
++++ b/include/perf_boot_info.h
+@@ -0,0 +1,73 @@
++/*
++ * Performance Core Boot Info
++ *
++ * Copyright (C) 2023 Continental Automotive
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ */
++
++#ifndef PERF_BOOT_INFO_H
++#define PERF_BOOT_INFO_H
++
++
++typedef enum
++{
++    BS_BL2_ENTRY,
++    BS_BL2_EXIT,
++    BS_BL31_ENTRY,
++    BS_BL31_EXIT,
++    BS_BL33_ENTRY,
++    BS_BL33_EXIT,
++}e_boot_stage;
++
++typedef enum
++{
++    WAKEUP_STATUS,
++    DDR_STATUS,
++}a53_status;
++
++enum ddr_init_status {
++    DDR_INIT_PASS = 0,
++    DDR_INIT_FAILED,
++    DDR_NO_NEED_INIT,
++};
++
++struct s_atf_info
++{
++    uint64_t bl2_start;
++    uint64_t bl2_exit;
++    uint32_t wakeup_reason;
++    uint32_t ddr_status;
++    uint64_t bl31_start;
++    uint64_t bl31_exit;
++};
++
++struct s_uboot_info
++{
++    uint64_t bl33_start;
++    uint64_t bl33_exit;
++    uint32_t bank_mode;
++    uint32_t boot_mode;
++    uint32_t image_verify;
++    uint32_t boot_stage;
++};
++
++struct s_perf_boot_info
++{
++    struct s_atf_info atf_info;
++    struct s_uboot_info uboot_info;
++};
++
++void get_bootInfo(struct s_perf_boot_info *b_info);
++void set_boot_stage(e_boot_stage stage);
++void set_a53_status(a53_status status, uint32_t status_value);
++
++#endif
+\ No newline at end of file
+diff --git a/lib/bootinfo/Makefile b/lib/bootinfo/Makefile
+new file mode 100644
+index 00000000..b5b80475
+--- /dev/null
++++ b/lib/bootinfo/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-$(CONFIG_TARGET_S32GEN1_HPER_GEN2) += perf_boot_info.o
+diff --git a/lib/bootinfo/perf_boot_info.c b/lib/bootinfo/perf_boot_info.c
+new file mode 100755
+index 00000000..c05598e2
+--- /dev/null
++++ b/lib/bootinfo/perf_boot_info.c
+@@ -0,0 +1,163 @@
++/*
++ * Performance Core Boot Info
++ *
++ * Copyright (C) 2023 Continental Automotive
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ */
++
++#ifdef HPER_GEN2_G3
++    #include <assert.h>
++    #include <stdbool.h>
++    #include "s32g_mc_rgm.h"
++    #include <common/debug.h>
++
++    #include "SRAM_address.h"
++    #include <plat/common/platform.h>
++    #include "s32_bl2_el3.h"
++    #define PERF_BL2_INFO_ADDRESS  HPCGEN2_SRAM_BL2_LOG_START_ADDRESS
++    static struct s_atf_info* pInfo = (struct s_atf_info *)(PERF_BL2_INFO_ADDRESS);
++#elif CONFIG_TARGET_S32GEN1_HPER_GEN2
++    #include <linux/types.h>
++    #include <configs/SRAM_address.h>
++#else    
++    #include <stdint.h>
++    #include <stdio.h>
++    #include <string.h>
++    #include <stdlib.h>
++    #include "SRAM_address.h"
++#endif
++
++#include "perf_boot_info.h"
++#include <stdio.h>
++
++#define PERF_UBOOT_INFO_ADDRESS  HPCGEN2_SRAM_U_BOOT_LOG_START_ADDRESS
++
++#define ATF_LOG_FILE "/sys/kernel/ipc-shm-hpe/atf_log_bin"
++#define UBOOT_LOG_FILE "/sys/kernel/ipc-shm-hpe/uboot_log_bin"
++
++#ifdef HPER_GEN2_G3
++static uint64_t get_boot_tick()
++{
++    uint64_t cntpct = read_cntpct_el0();
++
++    return cntpct;
++}
++#elif CONFIG_TARGET_S32GEN1_HPER_GEN2
++static uint64_t get_boot_tick()
++{
++     uint64_t tick_count = get_ticks();
++     return tick_count;
++}
++#else // Linux System
++static uint64_t get_boot_tick()
++{
++     return 0;
++}
++
++void get_bootInfo(struct s_perf_boot_info *b_info)
++{
++    if(b_info != NULL)
++    {
++        FILE *fd_atf = NULL;
++        FILE *fd_uboot = NULL;
++        struct s_perf_boot_info boot_info;
++
++        fd_atf = fopen(ATF_LOG_FILE, "r");
++        if(fd_atf == NULL){
++            perror("open :");
++            return ;
++        }
++
++       fread(&boot_info.atf_info, sizeof(struct s_atf_info), 1, fd_atf);
++        
++        fd_uboot = fopen(UBOOT_LOG_FILE, "r");
++        if(fd_uboot == NULL){
++            perror("open :");
++            return ;
++        }
++        fread(&boot_info.uboot_info, sizeof(struct s_uboot_info), 1, fd_uboot);
++ 
++        memcpy(b_info, &boot_info, sizeof(struct s_perf_boot_info));
++        fclose(fd_uboot);
++        fclose(fd_atf);
++    }
++  
++}
++#endif
++
++#ifdef HPER_GEN2_G3
++void set_a53_status(a53_status status, uint32_t status_value)
++{
++    switch(status)
++    {
++        case WAKEUP_STATUS:
++            pInfo->wakeup_reason = status_value;
++            break;
++        case DDR_STATUS:
++            pInfo->ddr_status = status_value;
++            break;
++        default:
++                NOTICE("Invalid a53 status: %d", status);
++            break;
++    }
++}
++#endif
++
++void set_boot_stage(e_boot_stage stage)
++{
++    uint64_t cntpct = get_boot_tick();
++#ifdef HPER_GEN2_G3
++    NOTICE("stage: %d, timing: %d\r\n", stage, (uint32_t)cntpct);
++
++    switch(stage)
++    {
++        case BS_BL2_ENTRY:
++            pInfo->bl2_start = cntpct;
++            break;
++        case BS_BL2_EXIT:
++            pInfo->bl2_exit = cntpct;
++            break;
++        case BS_BL31_ENTRY:
++            pInfo->bl31_start = cntpct;
++            break;
++        case BS_BL31_EXIT:
++            pInfo->bl31_exit = cntpct;
++            break;
++        default:
++                NOTICE("Invalid stage: %d", stage);
++            break;
++    }
++#elif CONFIG_TARGET_S32GEN1_HPER_GEN2
++    struct s_uboot_info* pInfo = (struct s_uboot_info *)(PERF_UBOOT_INFO_ADDRESS);
++    uint32_t bank_mode_value = *((volatile u32*)HPCGEN2_SRAM_BOOT_BANK_FLAG_START_ADDRESS);
++    uint32_t boot_mode_value = *((volatile u32*)HPCGEN2_SRAM_BOOT_MODE_FLAG_START_ADDRESS);
++    uint32_t image_verify_value = *((volatile u32*)HPCGEN2_SRAM_SEC_BOOT_ENABLE_FLAG_START_ADDRESS);
++
++    printf("stage: %d, timing: %d\r\n", stage, (uint32_t)cntpct);
++
++    switch(stage)
++    {
++        case BS_BL33_ENTRY:
++            pInfo->bl33_start = cntpct;
++            pInfo->bank_mode = bank_mode_value;
++            pInfo->boot_mode = boot_mode_value;
++            pInfo->image_verify = image_verify_value;
++            break;
++        case BS_BL33_EXIT:
++            pInfo->bl33_exit = cntpct;
++            break;
++        default:
++                printf("Invalid stage: %d", stage);
++            break;
++    }
++#endif
++}
+-- 
+2.25.1
+

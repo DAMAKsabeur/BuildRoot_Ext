@@ -1,0 +1,103 @@
+From 5535f665188fafc8a8b350134bffa09b6c69006b Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 19 Apr 2023 18:22:00 +0800
+Subject: [PATCH 1/1] disable sram clear
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ plat/nxp/s32/s32_lowlevel_bl2.S     | 3 ++-
+ plat/nxp/s32/s32g/s32g_bl2_el3.c    | 4 ++--
+ plat/nxp/s32/s32g/s32g_plat_funcs.c | 4 ++--
+ plat/nxp/s32/s32r/s32r_bl2_el3.c    | 4 ++--
+ 4 files changed, 8 insertions(+), 7 deletions(-)
+ mode change 100644 => 100755 plat/nxp/s32/s32_lowlevel_bl2.S
+ mode change 100644 => 100755 plat/nxp/s32/s32r/s32r_bl2_el3.c
+
+diff --git a/plat/nxp/s32/s32_lowlevel_bl2.S b/plat/nxp/s32/s32_lowlevel_bl2.S
+old mode 100644
+new mode 100755
+index 426b810..110f86f
+--- a/plat/nxp/s32/s32_lowlevel_bl2.S
++++ b/plat/nxp/s32/s32_lowlevel_bl2.S
+@@ -32,6 +32,7 @@ endfunc plat_reset_handler
+
+ /* Clobber list: x0,x1,x16 */
+ func platform_mem_init
++#ifndef HPER_GEN2_G3
+ 	mov	x16, x30
+ 	/*
+ 	 * Initialize SRAM, as BootROM did us no favours
+@@ -42,7 +43,7 @@ func platform_mem_init
+
+ 	bl	_s32_sram_clr
+ 	mov	x30, x16
+-
++#endif
+ 	ret
+ endfunc platform_mem_init
+
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 706dffc..352ebe3 100755
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -171,14 +171,14 @@ void bl2_el3_plat_arch_setup(void)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
+ #endif
+ #endif
+-
++#ifndef HPER_GEN2_G3
+ 	s32_sram_clear(S32_BL33_IMAGE_BASE, get_bl2_dtb_base());
+ 	/* Clear only the necessary part for the FIP header. The rest will
+ 	 * be cleared in bl2_plat_handle_post_image_load, before loading
+ 	 * the entire FIP image.
+ 	 */
+ 	s32_sram_clear(FIP_BASE, FIP_BASE + FIP_HEADER_SIZE);
+-
++#endif
+ 	//s32_ssram_clear();
+
+ 	/* disable Copy bl31 ssram stage */
+diff --git a/plat/nxp/s32/s32g/s32g_plat_funcs.c b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+index d9f92e3..5bd85de 100755
+--- a/plat/nxp/s32/s32g/s32g_plat_funcs.c
++++ b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+@@ -101,12 +101,12 @@ static void copy_bl31sram_image(void)
+ #if S32CC_EMU == 0
+ 	uint32_t npages;
+ 	int ret;
+-
++#ifndef HPER_GEN2_G3
+ 	/* Clear all BL31SRAM sections */
+ 	ret = s32_sram_clear(BL31SRAM_BASE, BL31SRAM_LIMIT);
+ 	if (ret)
+ 		ERROR("Failed to initialize SRAM from BL31SRAM stage\n");
+-
++#endif
+ 	npages = bl31sram_len / PAGE_SIZE;
+ 	if (bl31sram_len % PAGE_SIZE)
+ 		npages++;
+diff --git a/plat/nxp/s32/s32r/s32r_bl2_el3.c b/plat/nxp/s32/s32r/s32r_bl2_el3.c
+old mode 100644
+new mode 100755
+index 731714a..e9c6d7f
+--- a/plat/nxp/s32/s32r/s32r_bl2_el3.c
++++ b/plat/nxp/s32/s32r/s32r_bl2_el3.c
+@@ -70,14 +70,14 @@ void bl2_el3_plat_arch_setup(void)
+ 	ret = s32_el3_mmu_fixup();
+ 	if (ret)
+ 		panic();
+-
++#ifndef HPER_GEN2_G3
+ 	s32_sram_clear(S32_BL33_IMAGE_BASE, get_bl2_dtb_base());
+ 	/* Clear only the necessary part for the FIP header. The rest will
+ 	 * be cleared in bl2_plat_handle_post_image_load, before loading
+ 	 * the entire FIP image.
+ 	 */
+ 	s32_sram_clear(FIP_BASE, FIP_BASE + FIP_HEADER_SIZE);
+-
++#endif
+ 	clear_swt_faults();
+
+ 	ret = ddr_init();
+--
+2.35.1

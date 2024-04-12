@@ -1,0 +1,58 @@
+From dc9b6cf6a3ef468a939fdfe0b44e667267f61a1f Mon Sep 17 00:00:00 2001
+From: Hugo MONTAL <hugo.montal@continental-corporation.com>
+Date: Mon, 16 Oct 2023 14:39:41 +0200
+Subject: [PATCH] GPIOs
+
+---
+ plat/nxp/s32/include/s32_pinctrl.h |  6 ++++++
+ plat/nxp/s32/s32_pinctrl.c         | 18 ++++++++++++++++++
+ 2 files changed, 24 insertions(+)
+
+diff --git a/plat/nxp/s32/include/s32_pinctrl.h b/plat/nxp/s32/include/s32_pinctrl.h
+index 86dd4bf..765a646 100644
+--- a/plat/nxp/s32/include/s32_pinctrl.h
++++ b/plat/nxp/s32/include/s32_pinctrl.h
+@@ -111,7 +111,13 @@ static inline uint32_t get_siul2_midr2_freq(void)
+ 			>> SIUL2_MIDR2_FREQ_SHIFT);
+ }
+ 
++/* GPIO */
++#define SIUL2_GPIO_S32G_G1_EN \
++	(SIUL2_MSCR_S32_G1_OBE_EN | \
++	SIUL2_MSCR_MUX_MODE_ALT0)
++
+ void s32_plat_config_pinctrl(void);
+ 
++
+ #endif /* _S32_PINCTRL_H_ */
+ 
+diff --git a/plat/nxp/s32/s32_pinctrl.c b/plat/nxp/s32/s32_pinctrl.c
+index c4d4d48..2e6ded8 100644
+--- a/plat/nxp/s32/s32_pinctrl.c
++++ b/plat/nxp/s32/s32_pinctrl.c
+@@ -91,4 +91,22 @@ void s32_plat_config_pinctrl(void)
+ {
+ 	linflex_config_pinctrl(S32_LINFLEX_MODULE);
+ 	sdhc_config_pinctrl();
++
++	/* MARVELL POWER */
++	/* PB12 pad: DO_GWP2ETH_PWR_ENABLE */
++	mmio_write_32(SIUL2_0_MSCRn(28), SIUL2_GPIO_S32G_G1_EN);
++	mmio_write_8(0x4009D311, 0x1);
++
++	/* PF03 pad: DO_GWP2ETH_PWR_DISABLE_RED_1V8 */
++	mmio_write_32(SIUL2_0_MSCRn(83), SIUL2_GPIO_S32G_G1_EN);
++	mmio_write_8(0x4009D350, 0x0);
++
++	/* PG02 pad: DO_GWP2ETH_PWR_DISABLE_1V8 */
++	mmio_write_32(SIUL2_0_MSCRn(98), SIUL2_GPIO_S32G_G1_EN);
++	mmio_write_8(0x4009D361, 0x0);
++
++	/* EMMC POWER */
++	/* PL05 pad: EMMC_3V3_EN */
++	mmio_write_32(SIUL2_1_MSCRn(181), SIUL2_GPIO_S32G_G1_EN);
++	mmio_write_8(0x440113B6, 0x01);
+ }
+-- 
+2.42.0
+

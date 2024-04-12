@@ -1,0 +1,31 @@
+From 3451640111060e7827afc280b73eb136ec5c8e20 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Tue, 21 Mar 2023 18:44:01 +0800
+Subject: [PATCH 1/1] disable serdes
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ fdts/s32g.dtsi | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fdts/s32g.dtsi b/fdts/s32g.dtsi
+index a98b348..fffc5f8 100755
+--- a/fdts/s32g.dtsi
++++ b/fdts/s32g.dtsi
+@@ -336,7 +336,7 @@
+ };
+
+ &serdes0 {
+-	status = "okay";
++	status = "disabled";
+ };
+
+ &pinctrl {
+@@ -649,4 +649,5 @@
+
+ &serdes1 {
+ 	num-lanes = <2>;
++	status = "disabled";
+ };
+--
+2.35.1

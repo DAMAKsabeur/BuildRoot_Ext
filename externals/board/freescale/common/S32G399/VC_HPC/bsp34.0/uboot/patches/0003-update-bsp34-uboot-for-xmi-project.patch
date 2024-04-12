@@ -1,0 +1,486 @@
+From 4668794d1ed091f3f41e722950b559ca56c38d23 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 15 Mar 2023 17:38:15 +0800
+Subject: [PATCH 1/1] update bsp34 uboot for xmi project
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ arch/arm/mach-s32/Kconfig          |   4 +-
+ arch/arm/mach-s32/s32-cc/Kconfig   |   2 +-
+ arch/arm/mach-s32/s32g3/Kconfig    |  24 ++++--
+ board/nxp/s32g3_hper_gen2/Kconfig  |  46 +++++++++++
+ board/nxp/s32g3_hper_gen2/Makefile |   7 ++
+ board/nxp/s32g3xxaevb/Kconfig      |  21 +++++
+ drivers/net/dwc_eth_qos_core.c     |   9 +++
+ env/mmc.c                          |  54 ++++++++++++-
+ include/configs/s32-cc.h           | 121 ++++++++++++++++++++++++++---
+ 9 files changed, 266 insertions(+), 22 deletions(-)
+ mode change 100644 => 100755 arch/arm/mach-s32/s32-cc/Kconfig
+ create mode 100644 board/nxp/s32g3_hper_gen2/Kconfig
+ create mode 100644 board/nxp/s32g3_hper_gen2/Makefile
+
+diff --git a/arch/arm/mach-s32/Kconfig b/arch/arm/mach-s32/Kconfig
+index 591667ad5a..e3dd534ca3 100644
+--- a/arch/arm/mach-s32/Kconfig
++++ b/arch/arm/mach-s32/Kconfig
+@@ -61,8 +61,8 @@ config NXP_S32CC
+ 	select FSL_USDHC
+ 	select HUSH_PARSER
+ 	select MACH_S32
+-	select MMC_HS400_ES_SUPPORT
+-	select MMC_HS400_SUPPORT
++#	select MMC_HS400_ES_SUPPORT
++#	select MMC_HS400_SUPPORT
+ 	select MTD
+ 	select OF_BOARD_FIXUP
+ 	select OF_CONTROL
+diff --git a/arch/arm/mach-s32/s32-cc/Kconfig b/arch/arm/mach-s32/s32-cc/Kconfig
+old mode 100644
+new mode 100755
+index ff628f57aa..a9c68cbe99
+--- a/arch/arm/mach-s32/s32-cc/Kconfig
++++ b/arch/arm/mach-s32/s32-cc/Kconfig
+@@ -39,7 +39,7 @@ config SYS_DATA_BASE
+ 
+ config S32CC_MAX_DTB_SIZE
+ 	hex "Max size reserved for device tree in image layout"
+-	default 0x8000
++	default 0x7000
+ 
+ config SYS_MALLOC_F_LEN
+ 	default 0x2000
+diff --git a/arch/arm/mach-s32/s32g3/Kconfig b/arch/arm/mach-s32/s32g3/Kconfig
+index fc0b6f2c5c..14c9dfac8d 100644
+--- a/arch/arm/mach-s32/s32g3/Kconfig
++++ b/arch/arm/mach-s32/s32g3/Kconfig
+@@ -19,11 +19,20 @@ config TARGET_S32G3XXAEVB
+ 	  This board is based on S32G3 family of SoCs. It is equipped with
+ 	  4 GB of RAM, 64MB of QSPI memory, PCIe slot, USB, serial port,
+ 	  I2C and DSPI.
+-	imply DM_USB
+-	imply SAF1508BET_USB_PHY
+-	imply USB
+-	imply USB_EHCI_HCD
+-	imply USB_ULPI
++	# imply DM_USB
++	# imply SAF1508BET_USB_PHY
++	# imply USB
++	# imply USB_EHCI_HCD
++	# imply USB_ULPI
++	select NXP_S32GEVB_BOARD
++
++config TARGET_S32G3_HPER_GEN2
++	bool "Support S32G3 Continental board"
++	help
++	  This board is based on S32G3 family of SoCs. It is equipped with
++	  4 GB of RAM, 64MB of QSPI memory, PCIe slot, USB, serial port,
++	  I2C and DSPI.
++	  
+ 	select NXP_S32GEVB_BOARD
+ 
+ config TARGET_S32G3XXAEVB3
+@@ -40,13 +49,14 @@ config TARGET_S32G399AEMU
+ 
+ endchoice
+ 
+-config FSL_PFENG
+-	default y if !TARGET_TYPE_S32GEN1_EMULATOR
++#config FSL_PFENG
++#	default y if !TARGET_TYPE_S32GEN1_EMULATOR
+ 
+ source "board/nxp/s32-cc/s32g/Kconfig"
+ source "board/nxp/s32g399ardb3/Kconfig"
+ source "board/nxp/s32g3xxaevb/Kconfig"
+ source "board/nxp/s32g3xxaevb3/Kconfig"
+ source "board/nxp/s32g399aemu/Kconfig"
++source "board/nxp/s32g3_hper_gen2/Kconfig"
+ 
+ endif
+diff --git a/board/nxp/s32g3_hper_gen2/Kconfig b/board/nxp/s32g3_hper_gen2/Kconfig
+new file mode 100644
+index 0000000000..6b627e8455
+--- /dev/null
++++ b/board/nxp/s32g3_hper_gen2/Kconfig
+@@ -0,0 +1,46 @@
++# SPDX-License-Identifier: GPL-2.0+
++# Copyright 2022 Continental
++
++if TARGET_S32G3_HPER_GEN2
++
++config SYS_CONFIG_NAME
++	default "s32g3_hper_gen2"
++
++config SYS_BOARD
++	default "s32g3_hper_gen2"
++
++config NR_DRAM_BANKS
++	default 2
++
++config ENV_SECT_SIZE
++	default 0x10000 if QSPI_BOOT
++
++config SYS_EEPROM_PAGE_WRITE_DELAY_MS
++	default 10
++
++config SYS_EEPROM_SIZE
++	default 128
++
++config TARGET_S32GEN1_HPER_GEN2
++	bool "Continental HPER GEN2 board setup"
++	depends on TARGET_S32G3XXAEVB
++	default n
++	help
++	  Target for support for HPER_GEN2 board.
++
++config HPER_GEN2_BOOTLOADER
++	bool "Continental HPER GEN2 board bootloader setup"
++	depends on TARGET_S32GEN1_HPER_GEN2
++	default n
++	help
++	  Continental HPER GEN2 board bootloader setup
++
++config HPER_GEN2_BANK_MGMT
++	bool "Bank (A/B) management (FOTA feature)"
++	depends on TARGET_S32GEN1_HPER_GEN2
++	default n
++	help
++	  Continental HPER GEN2 bank management.
++	  Manage two banks in eMMC (A or B) for FOTA feature.	
++
++endif
+diff --git a/board/nxp/s32g3_hper_gen2/Makefile b/board/nxp/s32g3_hper_gen2/Makefile
+new file mode 100644
+index 0000000000..9bbb5c34ab
+--- /dev/null
++++ b/board/nxp/s32g3_hper_gen2/Makefile
+@@ -0,0 +1,7 @@
++#
++# Copyright 2022 NXP
++#
++# SPDX-License-Identifier:      GPL-2.0+
++#
++
++obj-y += ../s32-cc/s32g/
+diff --git a/board/nxp/s32g3xxaevb/Kconfig b/board/nxp/s32g3xxaevb/Kconfig
+index 404cb0c5f3..c4e2819184 100644
+--- a/board/nxp/s32g3xxaevb/Kconfig
++++ b/board/nxp/s32g3xxaevb/Kconfig
+@@ -21,4 +21,25 @@ config SYS_EEPROM_PAGE_WRITE_DELAY_MS
+ config SYS_EEPROM_SIZE
+ 	default 128
+ 
++config TARGET_S32GEN1_HPER_GEN2
++	bool "Continental HPER GEN2 board setup"
++	default n
++	help
++	  Target for support for HPER_GEN2 board.
++
++config HPER_GEN2_BOOTLOADER
++	bool "Continental HPER GEN2 board bootloader setup"
++	depends on TARGET_S32GEN1_HPER_GEN2
++	default n
++	help
++	  Continental HPER GEN2 board bootloader setup
++
++config HPER_GEN2_BANK_MGMT
++	bool "Bank (A/B) management (FOTA feature)"
++	depends on TARGET_S32GEN1_HPER_GEN2
++	default n
++	help
++	  Continental HPER GEN2 bank management.
++	  Manage two banks in eMMC (A or B) for FOTA feature.
++	  
+ endif
+diff --git a/drivers/net/dwc_eth_qos_core.c b/drivers/net/dwc_eth_qos_core.c
+index bf799b2513..755452d1a9 100644
+--- a/drivers/net/dwc_eth_qos_core.c
++++ b/drivers/net/dwc_eth_qos_core.c
+@@ -487,6 +487,15 @@ static int eqos_start(struct udevice *dev)
+ 	val = (rate / 1000000) - 1;
+ 	writel(val, &eqos->mac_regs->us_tic_counter);
+ 
++	static struct phy_device fixed_phy;
++	static struct phy_driver dummy_driver;
++	eqos->phy = &fixed_phy;
++	eqos->phy->drv = &dummy_driver;
++	eqos->phy->speed = SPEED_1000;
++	eqos->phy->duplex = 1;
++	eqos->phy->link = 1;
++ 	printf("gmac/switch: force fiexed link with dummy phy\n");	
++
+ 	/*
+ 	 * if PHY was already connected and configured,
+ 	 * don't need to reconnect/reconfigure again
+diff --git a/env/mmc.c b/env/mmc.c
+index 251ad07d7c..dfc0af0c0a 100644
+--- a/env/mmc.c
++++ b/env/mmc.c
+@@ -19,6 +19,12 @@
+ #include <search.h>
+ #include <errno.h>
+ 
++#if 1
++#include <configs/s32-gen1_hper_gen2.h>
++#include <configs/EMMC_address.h>
++#include <configs/SRAM_address.h>
++#endif /* CONFIG_TARGET_S32GEN1_HPER_GEN2 */
++
+ #define __STR(X) #X
+ #define STR(X) __STR(X)
+ 
+@@ -67,6 +73,8 @@ static inline s64 mmc_offset(int copy)
+ 	s64 val = 0, defvalue;
+ 	const char *propname;
+ 	const char *str;
++	const char bank_to_char[] = {'A', 'B'};
++	const char *boot_mode_to_str[] = {"Normal", "Flash", "Fota", "UDS_update", "Fallback"};
+ 	int err;
+ 
+ 	/* look for the partition in mmc CONFIG_SYS_MMC_ENV_DEV */
+@@ -78,7 +86,51 @@ static inline s64 mmc_offset(int copy)
+ 			return val;
+ 	}
+ 
++#if 1
++#if 1
++	/* Read current bank (A/B) in memory exchange area and jump
++	 * to the u-boot params partition in bank A or B (default A) */
++	u32 bank_config = *((volatile u32*)HPCGEN2_SRAM_BOOT_BANK_FLAG_START_ADDRESS);
++ bank_config >>=0x10;
++ bank_config &=0x03;
++	if(bank_config == BOOTLOADER_BANK_B) {
++		printf("U-boot environment will be loaded from bank %c (%d)\n",
++				bank_to_char[bank_config],
++				BOOTLOADER_BANK_B);
++		defvalue = HPCGEN2_USER_AREA_U_BOOT_PARAMS_B_START_ADDRESS;
++	}
++	else if (bank_config == BOOTLOADER_BANK_A) {
++		printf("U-boot environment will be loaded from bank %c (%d)\n",
++				bank_to_char[bank_config],
++				BOOTLOADER_BANK_A);
++		defvalue = HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_START_ADDRESS;
++	}
++	else {
++		printf("Failed to recognize current bank, u-boot environment will be loaded from bank %c (%d)\n",
++				bank_to_char[0],
++				BOOTLOADER_BANK_A);
++		defvalue = HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_START_ADDRESS;
++	}
++#else
++	defvalue = HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_START_ADDRESS;
++#endif /* CONFIG_HPER_GEN2_BANK_MGMT */
++
++	/* Read current boot mode in memory exchange area and jump
++	 * to the according section in the u-boot params partition
++	 * Default: select boot mode 0 */
++	u32 boot_mode = *((volatile u32*)HPCGEN2_SRAM_BOOT_MODE_FLAG_START_ADDRESS);
++	printf("Boot mode flag's value in SRAM: 0x%x\n", boot_mode);
++	if( boot_mode != 0xffffffff )
++	{
++		defvalue += boot_mode * CONFIG_ENV_SIZE;
++	}
++
++#else
+ 	defvalue = CONFIG_ENV_OFFSET;
++#endif /* CONFIG_TARGET_S32GEN1_HPER_GEN2 */
++
++	printf("U-boot environment is loaded from address 0x%llx\n", defvalue);
++
+ 	propname = dt_prop.offset;
+ 
+ #if defined(CONFIG_ENV_OFFSET_REDUND)
+@@ -217,7 +269,7 @@ static int env_mmc_save(void)
+ 		goto fini;
+ 	}
+ 
+-	printf("Writing to %sMMC(%d)... ", copy ? "redundant " : "", dev);
++	printf("Writing to %sMMC(%d @0x%08X)... ", copy ? "redundant " : "", dev, offset);
+ 	if (write_env(mmc, CONFIG_ENV_SIZE, offset, (u_char *)env_new)) {
+ 		puts("failed\n");
+ 		ret = 1;
+diff --git a/include/configs/s32-cc.h b/include/configs/s32-cc.h
+index 5b5014a5a2..e81a29d2dc 100644
+--- a/include/configs/s32-cc.h
++++ b/include/configs/s32-cc.h
+@@ -45,7 +45,7 @@
+  */
+ #define S32CC_PXE_ADDR			0x82E00000
+ #define S32CC_BOOT_SCR_ADDR		0x82F00000
+-#define S32CC_FDT_ADDR			0x83000000
++#define S32CC_FDT_ADDR			0x83E00000
+ #define S32CC_RAMDISK_ADDR		0x90000000
+ 
+ /* Disable Ramdisk & FDT relocation*/
+@@ -77,6 +77,54 @@
+ /* Increase image size */
+ #define CONFIG_SYS_BOOTM_LEN		(SZ_64M)
+ 
++/**
++ * Note: The *_FLASH_ADDR and *_FLASH_MAXSIZE macros are used
++ * with the 'setexpr' command. Therefore ensure none of them expand
++ * into operations with more than two operands and avoid unnecessary
++ * parantheses. Also these should be kept in sync with
++ * 'conf/machine/include/s32*flashmap.inc'.
++ *
++ * QSPI flash map:
++ *
++ * Name		Size			Offset
++ * FIP		~1.9M			0x0
++ * QSPI env	64K(CONFIG_ENV_SIZE)	0x01e0000(CONFIG_ENV_OFFSET)
++ * Image	14M			0x0e00000
++ * Linux DTB	1M			0x0ff0000
++ * Ramdisk	32M			0x10f0000
++ */
++ #ifdef CONFIG_TARGET_S32GEN1_HPER_GEN2
++// Flash Linux Address
++#define FDT_FLASH_ADDR			0x3A18C28
++#define FDT_FLASH_MAXSIZE		0x64
++#define KERNEL_FLASH_ADDR		0x3A13C28
++#define KERNEL_FLASH_MAXSIZE	0x5000
++#define RAMDISK_FLASH_ADDR		0x39AFC28
++#define RAMDISK_FLASH_MAXSIZE	0xA000
++#else // default configuration
++#define KERNEL_FLASH_MAXSIZE	0x0e00000
++#define FDT_FLASH_MAXSIZE		0x0100000
++#define RAMDISK_FLASH_MAXSIZE	0x2000000
++#define FIP_FLASH_ADDR			0x0000000
++#define KERNEL_FLASH_ADDR		0x01f0000
++#define FDT_FLASH_ADDR			0x0ff0000
++#define RAMDISK_FLASH_ADDR		0x10f0000
++
++
++#if defined(CONFIG_ENV_IS_IN_SPI_FLASH)
++#  if (CONFIG_ENV_OFFSET + CONFIG_ENV_SIZE > KERNEL_FLASH_ADDR)
++#    error "Environment and Kernel would overlap in flash memory"
++#  endif
++#endif
++#if (KERNEL_FLASH_ADDR + KERNEL_FLASH_MAXSIZE > FDT_FLASH_ADDR)
++#  error "Kernel and FDT would overlap in flash memory"
++#endif
++#if (FDT_FLASH_ADDR + FDT_FLASH_MAXSIZE > RAMDISK_FLASH_ADDR)
++#  error "FDT and Ramdisk would overlap in flash memory"
++#endif
++
++#endif //CONFIG_TARGET_S32GEN1_HPER_GEN2
++
+ /* Size of malloc() pool */
+ #define CONFIG_SYS_MALLOC_LEN		(CONFIG_ENV_SIZE + SZ_2M)
+ 
+@@ -89,7 +137,12 @@
+ 
+ #define CONFIG_HWCONFIG
+ 
++#if CONFIG_TARGET_S32GEN1_HPER_GEN2
++#define S32CC_DEFAULT_IP		"192.168.3.2"
++#else
+ #define S32CC_DEFAULT_IP		"10.0.0.100"
++#endif 
++
+ #define S32CC_NETMASK			"255.255.255.0"
+ 
+ /*
+@@ -134,23 +187,64 @@
+ 	"fdt_addr=" __stringify(S32CC_FDT_ADDR) "\0" \
+ 	"fdt_enable_hs400es=" \
+ 		"fdt addr ${fdt_addr}; " \
+-		"fdt rm /soc/mmc no-1-8-v; " \
++		"fdt rm /soc/usdhc no-1-8-v; " \
+ 		"fdt resize; \0" \
+ 	"fdt_file=" FDT_FILE "\0" \
+ 	"fdt_high=" __stringify(S32CC_FDT_HIGH_ADDR) "\0" \
+ 	"fdt_override=;\0" \
+-	"flashboot=echo Booting from flash...; " \
+-		"run flashbootargs;"\
+-		"mtd read Kernel ${loadaddr};"\
+-		"mtd read DTB ${fdt_addr};"\
+-		"mtd read Rootfs ${ramdisk_addr};"\
++	"boot_flash=echo Booting flash image from eMMC; " \
++		"run bootargsflash;"\
++		"mmc read ${loadaddr} ${flash_kernel_emmc_block} ${flash_kernel_max_blk_count};"\
++		"mmc read ${fdt_addr} ${flash_dtb_emmc_block} ${flash_dtb_max_blk_count};"\
++		"mmc read ${ramdisk_addr} ${flash_ramdisk_emmc_block} ${flash_ramdisk_max_blk_count};"\
++		"pfeng stop;"\
++		"${boot_mtd} ${loadaddr} ${ramdisk_addr} ${fdt_addr};\0" \
++	"loadaddr=0x80080000\0" \
++	"flash_kernel_emmc_block=0x3A13C28\0" \
++	"flash_kernel_max_blk_count=0x5000\0" \
++	"flash_dtb_emmc_block=0x3A18C28\0" \
++	"flash_dtb_max_blk_count=0x64\0" \
++	"flash_ramdisk_emmc_block=0x39AFC28\0" \
++	"flash_ramdisk_max_blk_count=0xF000\0" \
++	"boot_tftp=echo Booting image from TFTP; " \
++		"run bootargsram;"\
++		"run loadtftpimage;"\
++		"run loadtftpramdisk;"\
++		"run loadtftpfdt;pfeng stop; "\
+ 		"${boot_mtd} ${loadaddr} ${ramdisk_addr} ${fdt_addr};\0" \
++	"ethact=eth_eqos\0" \
++	"ethaddr=02:04:00:00:00:03\0" \
++	"s32cc_gmac_mode=enable\0" \
++	"vlan=65\0" \
++	"ramdisk=rootfs_flash.cpio.gz.u-boot\0" \
++	"loadtftpramdisk=tftp ${ramdisk_addr} ${ramdisk};\0" \
++	"bootargsram=setenv bootargs console=${console},${baudrate} root=/dev/ram rw earlycon ip=${ipaddr}:${serverip}::${netmask}::pfe0:off hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M\0" \
++	"boot_linux =echo Booting Linux from eMMC; " \
++		"run bootargsmmc;"\
++		"ext4load mmc ${mmcdev}:${mmcpart} ${loadaddr} /boot/Image;"\
++		"ext4load mmc ${mmcdev}:${mmcpart} ${fdt_addr} /boot/board.dtb;"\
++		"pfeng stop; "\
++		"${boot_mtd} ${loadaddr} - ${fdt_addr};\0" \
+ 	"flashbootargs=setenv bootargs console=${console},${baudrate}" \
+ 		" root=/dev/ram rw earlycon " EXTRA_BOOT_ARGS ";"\
+-		"setenv flashsize " __stringify(FSL_QSPI_FLASH_SIZE) ";\0" \
+-	"image=Image\0" \
++		"setenv fip_flashaddr " __stringify(FIP_FLASH_ADDR) ";" \
++		"setenv kernel_flashaddr " __stringify(KERNEL_FLASH_ADDR) ";" \
++		"setenv flashsize " __stringify(FSL_QSPI_FLASH_SIZE) ";" \
++		"setenv kernel_maxsize " __stringify(KERNEL_FLASH_MAXSIZE) ";" \
++		"setenv fdt_flashaddr " __stringify(FDT_FLASH_ADDR) ";" \
++		"setenv fdt_maxsize " __stringify(FDT_FLASH_MAXSIZE) ";" \
++		"setenv ramdisk_flashaddr " \
++				__stringify(RAMDISK_FLASH_ADDR) ";" \
++		"setenv ramdisk_maxsize " \
++				__stringify(RAMDISK_FLASH_MAXSIZE) ";\0" \
++	"image=Image_hpe_flash\0" \
+ 	"initrd_high=" __stringify(S32CC_INITRD_HIGH_ADDR) "\0" \
+ 	"ipaddr=" S32CC_DEFAULT_IP "\0"\
++	"linuxboot=echo Booting Linux from eMMC; " \
++	"run bootargsmmc;"\
++	"ext4load mmc ${mmcdev}:${mmcpart} ${loadaddr} /boot/Image;"\
++	"ext4load mmc ${mmcdev}:${mmcpart} ${fdt_addr} /boot/board.dtb;"\
++	PFE_INIT_CMD "${boot_mtd} ${loadaddr} - ${fdt_addr};\0" \
+ 	"jtagboot=echo Booting using jtag...; " \
+ 		"${boot_mtd} ${loadaddr} ${ramdisk_addr} ${fdt_addr}\0" \
+ 	"jtagsdboot=echo Booting loading Linux with ramdisk from SD...; " \
+@@ -206,14 +300,14 @@
+ 		"run loadtftpimage; " NFSRAMFS_TFTP_CMD "run loadtftpfdt;"\
+ 		"${boot_mtd} ${loadaddr} " NFSRAMFS_ADDR " ${fdt_addr};\0" \
+ 	"nfsbootargs=setenv bootargs console=${console},${baudrate} " \
+-		"root=/dev/nfs rw " \
++		"root=/dev/ram rw earlycon " \
+ 		"ip=${ipaddr}:${serverip}::${netmask}::" \
+ 			CONFIG_BOARD_NFS_BOOT_INTERFACE ":off " \
+ 		"nfsroot=${serverip}:/tftpboot/rfs,nolock,v3,tcp " \
+ 		"earlycon " EXTRA_BOOT_ARGS "\0" \
+ 	"ramdisk_addr=" __stringify(S32CC_RAMDISK_ADDR) "\0" \
+ 	"script=boot.scr\0" \
+-	"serverip=10.0.0.1\0" \
++	"serverip=192.168.3.10\0" \
+ 	"update_sd_firmware_filename=fip.s32\0" \
+ 	"update_sd_firmware=" \
+ 		"if test ${ip_dyn} = yes; " \
+@@ -303,6 +397,11 @@
+ 	BOOTCOMMAND
+ #endif
+ 
++
++#undef CONFIG_BOOTCOMMAND
++#  define CONFIG_BOOTCOMMAND "run netboot"
++
++
+ /* Limit mtest to first DDR bank if no arguments are given */
+ #define CONFIG_SYS_MEMTEST_START	(PHYS_SDRAM_1)
+ #define CONFIG_SYS_MEMTEST_END		(PHYS_SDRAM_1 + \
+-- 
+2.35.1
+

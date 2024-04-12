@@ -1,0 +1,2588 @@
+From c68b9d9b722e45b513a668d6d0f2192e04a12294 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Mon, 15 May 2023 11:53:27 +0800
+Subject: [PATCH 1/1] secure boot integrate
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ Makefile                                   |   6 +
+ arch/arm/cpu/armv8/Kconfig                 |   8 +
+ arch/arm/mach-s32/s32-cc/soc.c             |   5 +
+ arch/arm/mach-s32/s32g3/Kconfig            |   7 +-
+ cmd/Kconfig                                |   6 +
+ cmd/mmc.c                                  | 112 ++++-
+ drivers/crypto/Kconfig                     |  59 +++
+ drivers/crypto/fsl/Kconfig                 |  25 ++
+ drivers/crypto/fsl/hse/Makefile            |   3 +
+ drivers/crypto/fsl/hse/hpe_hse_hash.c      |  67 +++
+ drivers/crypto/fsl/hse/hpe_hse_random.c    |  54 +++
+ drivers/crypto/fsl/hse/hpe_hse_signature.c |  80 ++++
+ drivers/crypto/fsl/hse/hse_mmc.c           |  13 +-
+ drivers/crypto/fsl/hse/hse_mu.c            | 323 ++++++++------
+ env/mmc.c                                  |  33 +-
+ env/mmc_hpergen2.c                         | 148 +++++++
+ include/configs/s32-cc.h                   |  14 +-
+ include/hper_gen2/secure_boot.h            | 147 +++++++
+ include/hse/hpe_hse_common.h               |  46 ++
+ include/hse/hpe_hse_hash.h                 |  19 +
+ include/hse/hpe_hse_random.h               |  19 +
+ include/hse/hpe_hse_signature.h            |  21 +
+ include/hse/hse_abi.h                      | 486 +--------------------
+ include/hse/hse_mu.h                       |  30 +-
+ lib/Makefile                               |   4 +
+ lib/hper_gen2/Makefile                     |   5 +
+ lib/hper_gen2/secure_boot.c                | 318 ++++++++++++++
+ 27 files changed, 1419 insertions(+), 639 deletions(-)
+ mode change 100644 => 100755 Makefile
+ mode change 100644 => 100755 arch/arm/cpu/armv8/Kconfig
+ mode change 100644 => 100755 arch/arm/mach-s32/s32-cc/soc.c
+ mode change 100644 => 100755 arch/arm/mach-s32/s32g3/Kconfig
+ mode change 100644 => 100755 cmd/Kconfig
+ mode change 100644 => 100755 cmd/mmc.c
+ mode change 100644 => 100755 drivers/crypto/Kconfig
+ mode change 100644 => 100755 drivers/crypto/fsl/Kconfig
+ mode change 100644 => 100755 drivers/crypto/fsl/hse/Makefile
+ create mode 100755 drivers/crypto/fsl/hse/hpe_hse_hash.c
+ create mode 100755 drivers/crypto/fsl/hse/hpe_hse_random.c
+ create mode 100755 drivers/crypto/fsl/hse/hpe_hse_signature.c
+ mode change 100644 => 100755 drivers/crypto/fsl/hse/hse_mmc.c
+ mode change 100644 => 100755 drivers/crypto/fsl/hse/hse_mu.c
+ mode change 100644 => 100755 env/mmc.c
+ create mode 100755 env/mmc_hpergen2.c
+ mode change 100644 => 100755 include/configs/s32-cc.h
+ create mode 100755 include/hper_gen2/secure_boot.h
+ create mode 100755 include/hse/hpe_hse_common.h
+ create mode 100755 include/hse/hpe_hse_hash.h
+ create mode 100755 include/hse/hpe_hse_random.h
+ create mode 100755 include/hse/hpe_hse_signature.h
+ mode change 100644 => 100755 include/hse/hse_abi.h
+ mode change 100644 => 100755 include/hse/hse_mu.h
+ mode change 100644 => 100755 lib/Makefile
+ create mode 100755 lib/hper_gen2/Makefile
+ create mode 100755 lib/hper_gen2/secure_boot.c
+
+diff --git a/Makefile b/Makefile
+old mode 100644
+new mode 100755
+index c790118a60..280f59d012
+--- a/Makefile
++++ b/Makefile
+@@ -702,6 +702,12 @@ KBUILD_CFLAGS += $(KCFLAGS)
+ # Needed to be compatible with the O= option
+ UBOOTINCLUDE    := \
+ 		-Iinclude \
++		-Iinclude/hse \
++		-Iinclude/hse/interface \
++		-Iinclude/hse/interface/config \
++		-Iinclude/hse/interface/inc_common \
++		-Iinclude/hse/interface/inc_services \
++		-Iinclude/hper_gen2 \
+ 		$(if $(KBUILD_SRC), -I$(srctree)/include) \
+ 		$(if $(CONFIG_$(SPL_)SYS_THUMB_BUILD), \
+ 			$(if $(CONFIG_HAS_THUMB2),, \
+diff --git a/arch/arm/cpu/armv8/Kconfig b/arch/arm/cpu/armv8/Kconfig
+old mode 100644
+new mode 100755
+index bebf0ad3fc..47731ce314
+--- a/arch/arm/cpu/armv8/Kconfig
++++ b/arch/arm/cpu/armv8/Kconfig
+@@ -73,9 +73,17 @@ config SPL_ARMV8_SEC_FIRMWARE_SUPPORT
+ 	bool "Enable ARMv8 secure monitor firmware framework support for SPL"
+ 	select SPL_FIT
+ 	select SPL_OF_LIBFDT
++	select OF_FDT
++	select OF_BOARD_SETUP
+ 	help
+ 	  Say Y here to support this framework in SPL phase.
+ 
++config SYS_MEM_RESERVE_SECURE
++	bool "Enable secure firmware support"
++	default y
++	help
++	  Say N here to disable.
++
+ config SEC_FIRMWARE_ARMV8_PSCI
+ 	bool "PSCI implementation in secure monitor firmware"
+ 	depends on ARMV8_SEC_FIRMWARE_SUPPORT || SPL_ARMV8_SEC_FIRMWARE_SUPPORT
+diff --git a/arch/arm/mach-s32/s32-cc/soc.c b/arch/arm/mach-s32/s32-cc/soc.c
+old mode 100644
+new mode 100755
+index 59990f5389..7eb469ad34
+--- a/arch/arm/mach-s32/s32-cc/soc.c
++++ b/arch/arm/mach-s32/s32-cc/soc.c
+@@ -70,6 +70,11 @@ static struct mm_region s32_mem_map[] = {
+ 		PTE_BLOCK_NON_SHARE | PTE_BLOCK_PXN | PTE_BLOCK_UXN
+ 	},
+ #endif
++	{
++		CONFIG_CRYPTO_DEV_NXP_HSE_DESC_BASE_ADDR, CONFIG_CRYPTO_DEV_NXP_HSE_DESC_BASE_ADDR,
++		CONFIG_CRYPTO_DEV_NXP_HSE_DESC_SIZE,
++		PTE_BLOCK_MEMTYPE(MT_NORMAL_NC) | PTE_BLOCK_OUTER_SHARE
++	},
+ 	/* list terminator */
+ 	{},
+ };
+diff --git a/arch/arm/mach-s32/s32g3/Kconfig b/arch/arm/mach-s32/s32g3/Kconfig
+old mode 100644
+new mode 100755
+index 14c9dfac8d..927abff9a2
+--- a/arch/arm/mach-s32/s32g3/Kconfig
++++ b/arch/arm/mach-s32/s32g3/Kconfig
+@@ -51,7 +51,12 @@ endchoice
+ 
+ #config FSL_PFENG
+ #	default y if !TARGET_TYPE_S32GEN1_EMULATOR
+-
++config HPER_GEN2_UBOOT_SECURE_BOOT
++	bool "Secure Boot activation"
++	depends on TARGET_S32GEN1_HPER_GEN2
++	default n
++	help
++		Continental HPER GEN2 uboot secure boot activation
+ source "board/nxp/s32-cc/s32g/Kconfig"
+ source "board/nxp/s32g399ardb3/Kconfig"
+ source "board/nxp/s32g3xxaevb/Kconfig"
+diff --git a/cmd/Kconfig b/cmd/Kconfig
+old mode 100644
+new mode 100755
+index 6403bc45a5..4f3f7b464e
+--- a/cmd/Kconfig
++++ b/cmd/Kconfig
+@@ -536,6 +536,7 @@ config CMD_GREPENV
+ config CMD_SAVEENV
+ 	bool "saveenv"
+ 	default y
++        depends on !HPER_GEN2_UBOOT_SECURE_BOOT
+ 	help
+ 	  Save all environment variables into the compiled-in persistent
+ 	  storage.
+@@ -1980,6 +1981,11 @@ config CMD_EXT4
+ 	help
+ 	  Enables EXT4 FS command
+ 
++config CMD_SECUREBOOT
++	bool "secure boot support for HSE"
++	help
++	  Enables HSE secure boot capability
++
+ config CMD_EXT4_WRITE
+ 	depends on CMD_EXT4
+ 	bool "ext4 write command support"
+diff --git a/cmd/mmc.c b/cmd/mmc.c
+old mode 100644
+new mode 100755
+index 1860a3f2e5..c1f07ffcdd
+--- a/cmd/mmc.c
++++ b/cmd/mmc.c
+@@ -10,8 +10,14 @@
+ #include <mmc.h>
+ #include <sparse_format.h>
+ #include <image-sparse.h>
++
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++#include <hper_gen2/secure_boot.h>
++#endif /* HPER_GEN2_UBOOT_SECURE_BOOT */
++#define MMC_BLK_SIZE 512
+ 
+ static int curr_device = -1;
++static uint mmc_read_block_size = 0u;
+ 
+ static void print_mmcinfo(struct mmc *mmc)
+ {
+@@ -290,32 +296,102 @@ static int do_mmcrpmb(cmd_tbl_t *cmdtp, int flag,
+ }
+ #endif
+ 
+-static int do_mmc_read(cmd_tbl_t *cmdtp, int flag,
+-		       int argc, char * const argv[])
++static int mmc_read_blk(void *dst_addr, u32 src_blk, u32 blk_cnt)
+ {
+ 	struct mmc *mmc;
+-	u32 blk, cnt, n;
+-	void *addr;
++	u32 n;
++
++	mmc = init_mmc_device(curr_device, false);
++	if (!mmc)
++		return CMD_RET_FAILURE;
++
++	printf("MMC read: dev # %d, block # %d, count %d ... ",
++			curr_device, src_blk, blk_cnt);
++
++	n = blk_dread(mmc_get_blk_desc(mmc), src_blk, blk_cnt, dst_addr);
++	printf("%d blocks read: %s\n", n, (n == blk_cnt) ? "OK" : "ERROR");
++
++	mmc_read_block_size = mmc->read_bl_len;
++
++	return (n == blk_cnt) ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
++}
++
++static int do_mmc_read(cmd_tbl_t *cmdtp, int flag,
++				int argc, char * const argv[])
++{
++	u32 src_blk, blk_cnt;
++	void *dst_addr;
+ 
+ 	if (argc != 4)
+ 		return CMD_RET_USAGE;
+ 
+-	addr = (void *)simple_strtoul(argv[1], NULL, 16);
+-	blk = simple_strtoul(argv[2], NULL, 16);
+-	cnt = simple_strtoul(argv[3], NULL, 16);
++	dst_addr = (void *)simple_strtoul(argv[1], NULL, 16);
++	src_blk = simple_strtoul(argv[2], NULL, 16);
++	blk_cnt = simple_strtoul(argv[3], NULL, 16);
++
++	return mmc_read_blk(dst_addr, src_blk, blk_cnt);
++}
+ 
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++/**
++ * @brief Command mmc readsecure.
++ *
++ * Read a BImg (image signed) from the MMC to load in RAM and check the validity of:
++ *  - the image header (Boot Content Certificate - aka BCCert)
++ *  - the image software
++ * The image SW is loaded only if the BCCert is valid.
++ *
++ * @param[in] cmdtp Table entry describing the command
++ * @param[in] flag A bitmap which may contain the following bits:
++ * 				- CMD_FLAG_REPEAT - The last command is repeated
++ * 				- CMD_FLAG_BOOTD - The command is called by the bootd command
++ * 				- CMD_FLAG_ENV - The command is called by the run command
++ * @param[in] argc Number of arguments including the command
++ * @param[in] argv Arguments:
++ * 				- argv[1]: image destination address in RAM
++ * 				- argv[2]: source block address of the BImg in MMC
++ * 				- argv[3]: size in blocks of the BImg in MMC
++ *				- argv[4]: binary name
++ */
++static int do_mmc_readsecure(cmd_tbl_t *cmdtp, int flag,
++			int argc, char * const argv[])
++{
++	int retcode = 0x00;
++	void * src_addr = NULL;
++	size_t img_size = 0x00U;
++	void *dst_addr = NULL;
++	struct mmc *mmc;
++	SecureBootReturnCode_t result = E_SB_OK;
++	if (argc != 4)
++	{
++		retcode = CMD_RET_USAGE;
++		goto exit;
++	}
++	/* calculate offsets depending on MMC block size */
++	dst_addr = (void *) simple_strtoul(argv[1], NULL, 16);
++	src_addr = (void *)(simple_strtoul(argv[2], NULL, 16) * MMC_BLK_SIZE);
++	img_size = (size_t)(simple_strtoul(argv[3], NULL, 16) * MMC_BLK_SIZE);
++	/* get the emmc handler from dts */
+ 	mmc = init_mmc_device(curr_device, false);
+ 	if (!mmc)
+-		return CMD_RET_FAILURE;
+-
+-	printf("\nMMC read: dev # %d, block # %d, count %d ... ",
+-	       curr_device, blk, cnt);
++	{
++		printf("init_mmc_device failed \n");
++		retcode =  CMD_RET_FAILURE;
++		goto exit;
++	}
+ 
+-	n = blk_dread(mmc_get_blk_desc(mmc), blk, cnt, addr);
+-	printf("%d blocks read: %s\n", n, (n == cnt) ? "OK" : "ERROR");
++	result =  secureLoadImage(mmc, dst_addr, src_addr, img_size, argv[4]);
+ 
+-	return (n == cnt) ? CMD_RET_SUCCESS : CMD_RET_FAILURE;
++	if (E_SB_OK != result)
++	{
++		printf("secureLoadImage fail for %s (result= %d) \n",argv[4], result);
++		retcode = CMD_RET_FAILURE;
++		goto exit;
++	}
++exit:
++	return (retcode);
+ }
++#endif /* HPER_GEN2_UBOOT_SECURE_BOOT */
+ 
+ #if CONFIG_IS_ENABLED(CMD_MMC_SWRITE)
+ static lbaint_t mmc_sparse_write(struct sparse_storage *info, lbaint_t blk,
+@@ -875,6 +951,9 @@ static int do_mmc_bkops_enable(cmd_tbl_t *cmdtp, int flag,
+ static cmd_tbl_t cmd_mmc[] = {
+ 	U_BOOT_CMD_MKENT(info, 1, 0, do_mmcinfo, "", ""),
+ 	U_BOOT_CMD_MKENT(read, 4, 1, do_mmc_read, "", ""),
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++	U_BOOT_CMD_MKENT(readsecure, 4, 1, do_mmc_readsecure, "", ""),
++#endif
+ #if CONFIG_IS_ENABLED(MMC_WRITE)
+ 	U_BOOT_CMD_MKENT(write, 4, 0, do_mmc_write, "", ""),
+ 	U_BOOT_CMD_MKENT(erase, 3, 0, do_mmc_erase, "", ""),
+@@ -934,7 +1013,10 @@ U_BOOT_CMD(
+ 	mmc, 29, 1, do_mmcops,
+ 	"MMC sub system",
+ 	"info - display info of the current MMC device\n"
+-	"mmc read addr blk# cnt\n"
++	"mmc read addr blk# cnt app_name\n"
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++	"mmc readsecure addr blk# cnt app_name\n"
++#endif
+ 	"mmc write addr blk# cnt\n"
+ #if CONFIG_IS_ENABLED(CMD_MMC_SWRITE)
+ 	"mmc swrite addr blk#\n"
+diff --git a/drivers/crypto/Kconfig b/drivers/crypto/Kconfig
+old mode 100644
+new mode 100755
+index 1ea116be75..a82332f857
+--- a/drivers/crypto/Kconfig
++++ b/drivers/crypto/Kconfig
+@@ -2,4 +2,63 @@ menu "Hardware crypto devices"
+ 
+ source drivers/crypto/fsl/Kconfig
+ 
++choice
++	prompt "Messaging Unit Interface"
++	default CRYPTO_DEV_NXP_HSE_MU0
++	help
++	  Configures the Messaging Unit instance reserved for the hse driver.
++
++config CRYPTO_DEV_NXP_HSE_MU0
++	bool "MU0"
++config CRYPTO_DEV_NXP_HSE_MU1
++	bool "MU1"
++config CRYPTO_DEV_NXP_HSE_MU2
++	bool "MU2"
++config CRYPTO_DEV_NXP_HSE_MU3
++	bool "MU3"
++endchoice
++
++config CRYPTO_DEV_NXP_HSE_MU
++	int
++	default 0 if CRYPTO_DEV_NXP_HSE_MU0
++	default 1 if CRYPTO_DEV_NXP_HSE_MU1
++	default 2 if CRYPTO_DEV_NXP_HSE_MU2
++	default 3 if CRYPTO_DEV_NXP_HSE_MU3
++
++config CRYPTO_DEV_NXP_HSE_MU_BASE_ADDR
++	hex "Address to NXP HSE control register"
++	default 0x40210000
++	help
++	  Provide an address to NXP HSE control register.
++
++config CRYPTO_DEV_NXP_HSE_MU_SIZE
++	hex "Address to NXP HSE control register"
++	default 0x4000
++	help
++	  Provide an address to NXP HSE control register.
++
++config CRYPTO_DEV_NXP_HSE_DESC_BASE_ADDR
++	hex "Address to NXP HSE service descriptor dram zone"
++	default 0x22C00000
++	help
++	  Provide an address to NXP HSE service descriptor dram zone"
++
++config CRYPTO_DEV_NXP_HSE_DESC_SIZE
++	hex "Address to NXP HSE service descriptor dram zone"
++	default 0x4000
++	help
++	  Provide an address to NXP HSE service descriptor dram zone"
++
++config CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_BASE_ADDR
++	hex "Address to NXP HSE dma-ble dram zone"
++	default 0x84000000
++	help
++	  Provide an Aaddress to NXP HSE dma-ble dram zone
++
++config CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_SIZE
++	hex "Address to NXP HSE dma-ble dram zone"
++	default 0x40000
++	help
++	  Provide an Aaddress to NXP HSE dma-ble dram zone
++
+ endmenu
+diff --git a/drivers/crypto/fsl/Kconfig b/drivers/crypto/fsl/Kconfig
+old mode 100644
+new mode 100755
+index 38a17ae085..40dec4ff8f
+--- a/drivers/crypto/fsl/Kconfig
++++ b/drivers/crypto/fsl/Kconfig
+@@ -49,6 +49,7 @@ config SYS_FSL_SEC_LE
+ config HSE_SECBOOT
+ 	bool "HSE Secure Boot"
+ 	depends on NXP_S32CC
++        select HSE_CRYPTO_OP
+ 	help
+ 		Enable HSE-provided Advanced Secure Boot
+ 
+@@ -59,3 +60,27 @@ config HSE_FW_FILE
+ 	help
+ 		File to be used as firmware for NXP HSE
+ 		(Hardware Security Engine) accelerator.
++
++config HSE_CRYPTO_OP
++	bool "HSE crypto operations"
++	depends on S32_GEN1
++	help
++		Enable HSE-provided crypto operations
++config HSE_CRYPTO_HASH
++	bool "HSE hash support"
++	default y
++	depends on HSE_CRYPTO_OP
++	help
++		Enable HSE-provided Advanced Secure Boot
++config HSE_CRYPTO_SIGN
++	bool "HSE sign support"
++	default y
++	depends on HSE_CRYPTO_OP
++	help
++		Enable HSE-provided Advanced Secure Boot
++config HSE_CRYPTO_RNG
++	bool "HSE HW rng support"
++	default y
++	depends on HSE_CRYPTO_OP
++	help
++		Enable HSE-provided Advanced Secure Boot
+diff --git a/drivers/crypto/fsl/hse/Makefile b/drivers/crypto/fsl/hse/Makefile
+old mode 100644
+new mode 100755
+index 175a526c60..95abd2cc5f
+--- a/drivers/crypto/fsl/hse/Makefile
++++ b/drivers/crypto/fsl/hse/Makefile
+@@ -3,3 +3,6 @@
+ # Copyright 2020 NXP
+ 
+ obj-$(CONFIG_HSE_SECBOOT) += hse_mu.o hse_mmc.o
++obj-$(CONFIG_HSE_CRYPTO_HASH) += hpe_hse_hash.o
++obj-$(CONFIG_HSE_CRYPTO_SIGN) += hpe_hse_signature.o
++obj-$(CONFIG_HSE_CRYPTO_RNG)  += hpe_hse_random.o
+diff --git a/drivers/crypto/fsl/hse/hpe_hse_hash.c b/drivers/crypto/fsl/hse/hpe_hse_hash.c
+new file mode 100755
+index 0000000000..53e9a50ee3
+--- /dev/null
++++ b/drivers/crypto/fsl/hse/hpe_hse_hash.c
+@@ -0,0 +1,67 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++
++#include <hpe_hse_hash.h>
++
++/**
++ * @brief Function performing HSE send requests for HASH calculation operation.
++ * @param buffer
++ * @param size
++ * @param HashAlgo
++ * @param hash
++ * @param hash_size
++ * @return hse_services_ret_t
++ */
++hse_services_ret_t hpe_hse_hash(uint8_t* buffer , uint32_t size, hseHashAlgo_t HashAlgo,
++                                uint8_t* hash, uint32_t hash_size)
++{
++    hse_private_t *priv = NULL;
++    hse_services_ret_t hash_ret = HSE_SERVICES_OK;
++    hse_command_ret_t ret = HSE_CMD_RET_SUCCESS;
++    hseSrvDescriptor_t srv_desc = {0x00};
++
++    if ((NULL == buffer) || (0x00 == size) ||
++        (NULL == hash) || (0x00 == hash_size) || (HSE_HASH_LEN < hash_size) )
++    {
++        hash_ret = HSE_SERVICES_INVALID_PARAM;
++        goto exit;
++    }
++
++    priv = (hse_private_t *)(CONFIG_CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_BASE_ADDR);
++    memset((void *)priv, 0, sizeof(hse_private_t));
++    priv->dgst_len = hash_size;
++    /* fill the service descriptor */
++    srv_desc.srvId                      = HSE_SRV_ID_HASH;
++    srv_desc.hseSrv.hashReq.accessMode  = HSE_ACCESS_MODE_ONE_PASS;
++    srv_desc.hseSrv.hashReq.streamId    = 0x00;
++    srv_desc.hseSrv.hashReq.hashAlgo    = HashAlgo;
++    srv_desc.hseSrv.hashReq.sgtOption   = HSE_SGT_OPTION_NONE;
++    srv_desc.hseSrv.hashReq.inputLength = size;
++
++    srv_desc.hseSrv.hashReq.pInput      = buffer;
++
++    srv_desc.hseSrv.hashReq.pHashLength = &priv->dgst_len;
++    srv_desc.hseSrv.hashReq.pHash       = priv->dgst;
++
++    flush_dcache_range((uint64_t)priv,
++               (uint64_t)priv + sizeof(hse_private_t));
++
++    ret = hse_srv_req_sync(FIRST_MU_CHANNEL, &srv_desc);
++    if (HSE_CMD_RET_SUCCESS != ret)
++    {
++        hash_ret = HSE_SERVICES_OPERATION_FAILED;
++        goto exit;
++    }
++    memcpy(hash, priv->dgst, hash_size);
++exit:
++    return(hash_ret);
++}
+diff --git a/drivers/crypto/fsl/hse/hpe_hse_random.c b/drivers/crypto/fsl/hse/hpe_hse_random.c
+new file mode 100755
+index 0000000000..285b447505
+--- /dev/null
++++ b/drivers/crypto/fsl/hse/hpe_hse_random.c
+@@ -0,0 +1,54 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++
++#include <hpe_hse_random.h>
++
++/**
++ * @brief Function performing HSE send requests for HW random generation operation.
++ * @param buffer
++ * @param size
++ * @return hse_services_ret_t
++ */
++
++hse_services_ret_t hpe_hse_rng(uint8_t* buffer , size_t size)
++{
++    hse_private_t *priv = NULL;
++    hse_command_ret_t ret = HSE_CMD_RET_SUCCESS;
++    hseSrvDescriptor_t srv_desc = {0x00};
++    hse_services_ret_t rng_ret = HSE_SERVICES_OK;
++
++    if ((NULL == buffer) || (0x00 == size) || (NUMBER_OF_RNG_BYTES < size))
++    {
++        printf("ERROR: invalid params\n");
++        rng_ret = HSE_SERVICES_OPERATION_FAILED;
++        goto exit;
++    }
++
++    priv = (hse_private_t *)(CONFIG_CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_BASE_ADDR);
++    memset((void *)priv, 0, sizeof(hse_private_t));
++    /* fill the service descriptor */
++    srv_desc.srvId = HSE_SRV_ID_GET_RANDOM_NUM;
++    srv_desc.hseSrv.getRandomNumReq.rngClass = HSE_RNG_CLASS_PTG3;
++    srv_desc.hseSrv.getRandomNumReq.randomNumLength = size;
++    srv_desc.hseSrv.getRandomNumReq.pRandomNum = priv->Rng;
++    flush_dcache_range((uint64_t)priv,
++                   (uint64_t)priv + sizeof(hse_private_t));
++    ret = hse_srv_req_sync(FIRST_MU_CHANNEL, &srv_desc);
++    if (HSE_CMD_RET_SUCCESS != ret)
++    {
++        rng_ret = HSE_SERVICES_OPERATION_FAILED;
++        goto exit;
++    }
++    memcpy(buffer, priv->Rng, size);
++exit:
++    return(rng_ret);
++}
+diff --git a/drivers/crypto/fsl/hse/hpe_hse_signature.c b/drivers/crypto/fsl/hse/hpe_hse_signature.c
+new file mode 100755
+index 0000000000..69496e7f21
+--- /dev/null
++++ b/drivers/crypto/fsl/hse/hpe_hse_signature.c
+@@ -0,0 +1,80 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++#include <hpe_hse_signature.h>
++
++/**
++ * @brief Function performing HSE send requests for RSa pss signature verify operation.
++ * @param key
++ * @param SignScheme_id
++ * @param HashAlgo
++ * @param buffer
++ * @param size
++ * @param signature
++ * @param signature_length
++ * @param salt_len
++ * @return hse_services_ret_t
++ */
++static hseSrvDescriptor_t srv_desc = {0x00};
++hse_services_ret_t hpe_hse_rsa_pss_signature(key_ref_t key , hseSignSchemeEnum_t SignScheme_id,hseHashAlgo_t HashAlgo,
++                                             uint8_t* buffer , size_t size,
++                                             uint8_t* signature , uint32_t signature_length, uint32_t salt_len)
++{
++    hse_private_t *priv;
++    hse_services_ret_t sign_ret = HSE_SERVICES_OK;
++    //hseSrvDescriptor_t srv_desc = {0x00};
++    hse_command_ret_t ret = HSE_CMD_RET_SUCCESS;
++
++    if ((NULL == buffer) || (0x00 == size) || (HSE_DATA_LEN < size) ||
++   		(NULL == signature) || (0x00 == signature_length) || (HSE_SIGNATURE_LEN < signature_length))
++    {
++        printf("ERROR: invalid params\n");
++        sign_ret = HSE_SERVICES_INVALID_PARAM;
++        goto exit;
++    }
++    priv = (hse_private_t *)(CONFIG_CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_BASE_ADDR);
++    memset((void *)priv, 0, sizeof(hse_private_t));
++
++    memcpy(priv->data, buffer, size );
++    memcpy(priv->signature, signature, signature_length);
++    /* fill the service descriptor */
++    priv->signature_len = signature_length;
++    srv_desc.srvId                         = HSE_SRV_ID_SIGN;
++    srv_desc.hseSrv.signReq.accessMode     = HSE_ACCESS_MODE_ONE_PASS;
++    srv_desc.hseSrv.signReq.streamId       = 0x00;
++    srv_desc.hseSrv.signReq.authDir        = HSE_AUTH_DIR_VERIFY;
++    srv_desc.hseSrv.signReq.bInputIsHashed = false;
++    srv_desc.hseSrv.signReq.signScheme.signSch               = SignScheme_id;
++    srv_desc.hseSrv.signReq.signScheme.sch.rsaPss.hashAlgo   = HashAlgo;
++    srv_desc.hseSrv.signReq.signScheme.sch.rsaPss.saltLength = salt_len;
++    srv_desc.hseSrv.signReq.keyHandle = (hseKeyHandle_t)GET_KEY_HANDLE(key.catalog_id, key.group_id, key.slot_id);
++    srv_desc.hseSrv.signReq.sgtOption   = HSE_SGT_OPTION_NONE;
++    srv_desc.hseSrv.signReq.inputLength = size;
++
++    srv_desc.hseSrv.signReq.pInput = (uint64_t *)priv->data;
++    srv_desc.hseSrv.signReq.pSignature[0] = (uint64_t *)priv->signature;
++    srv_desc.hseSrv.signReq.pSignature[1] = NULL;
++
++    srv_desc.hseSrv.signReq.pSignatureLength[0]  = (uint64_t *)&priv->signature_len;
++    srv_desc.hseSrv.signReq.pSignatureLength[1]  = NULL;
++
++    flush_dcache_range((uint64_t)priv,
++               (uint64_t)priv + sizeof(hse_private_t));
++
++    ret = hse_srv_req_sync(FIRST_MU_CHANNEL, &srv_desc);
++    if (HSE_CMD_RET_SUCCESS != ret)
++    {
++        sign_ret = HSE_SERVICES_OPERATION_FAILED;
++        goto exit;
++    }
++exit:
++    return(sign_ret);
++}
+diff --git a/drivers/crypto/fsl/hse/hse_mmc.c b/drivers/crypto/fsl/hse/hse_mmc.c
+old mode 100644
+new mode 100755
+index b2bc923e20..e1c62701c6
+--- a/drivers/crypto/fsl/hse/hse_mmc.c
++++ b/drivers/crypto/fsl/hse/hse_mmc.c
+@@ -5,7 +5,8 @@
+  * Copyright 2020 NXP
+  */
+ 
+-#include <hse/hse_abi.h>
++#include <hse_abi.h>
++#include <hse_mu.h>
+ 
+ /* see include/mmc.h and cmd/mmc.c */
+ static int curr_device;
+@@ -17,7 +18,7 @@ struct mmc *hse_init_mmc_device(int dev, bool force_init)
+ 	mmc = find_mmc_device(dev);
+ 
+ 	if (!mmc) {
+-		log_err("ERROR: no mmc device at slot %x!\n", dev);
++		printf("ERROR: no mmc device at slot %x!\n", dev);
+ 		return NULL;
+ 	}
+ 
+@@ -39,8 +40,8 @@ int hse_mmc_read(void *addr, u32 blk, u32 cnt)
+ 
+ 	mmc = hse_init_mmc_device(curr_device, false);
+ 	if (!mmc) {
+-		log_err("ERROR: MMC init failed!\n");
+-		return CMD_RET_FAILURE;
++		printf("ERROR: MMC init failed!\n");
++		return HSE_CMD_RET_FAILURE;
+ 	}
+ 
+ 	printf("\tMMC read: dev # %d, block # %d, count %d ...",
+@@ -59,7 +60,7 @@ int hse_mmc_write(void *addr, u32 blk, u32 cnt)
+ 
+ 	mmc = hse_init_mmc_device(curr_device, false);
+ 	if (!mmc) {
+-		log_err("ERROR: MMC init failed!\n");
++		printf("ERROR: MMC init failed!\n");
+ 		return -1;
+ 	}
+ 
+@@ -67,7 +68,7 @@ int hse_mmc_write(void *addr, u32 blk, u32 cnt)
+ 	       curr_device, blk, cnt);
+ 
+ 	if (mmc_getwp(mmc) == 1) {
+-		log_err("ERROR: card is write protected!\n");
++		printf("ERROR: card is write protected!\n");
+ 		return -1;
+ 	}
+ 
+diff --git a/drivers/crypto/fsl/hse/hse_mu.c b/drivers/crypto/fsl/hse/hse_mu.c
+old mode 100644
+new mode 100755
+index 87196a16a5..85f2b7350a
+--- a/drivers/crypto/fsl/hse/hse_mu.c
++++ b/drivers/crypto/fsl/hse/hse_mu.c
+@@ -2,20 +2,20 @@
+ /*
+  * HSE MU interface for secure boot in u-boot
+  *
+- * Copyright 2020-2021 NXP
++ * Copyright 2020 NXP
+  */
+ 
+ #include <common.h>
+ #include <linux/io.h>
+ #include <errno.h>
+ 
+-#include <hse/hse_mu.h>
+-#include <hse/hse_abi.h>
++#include <hse_mu.h>
++#include <hse_abi.h>
+ 
+-#define MU0B_BASE    0x40210000ul
+-#define MU1B_BASE    0x40211000ul
+-#define MU2B_BASE    0x40212000ul
+-#define MU3B_BASE    0x40213000ul
++/* control register base address for selected MU */
++#define MU_BASE(mu_index) (uint32_t)(CONFIG_CRYPTO_DEV_NXP_HSE_MU_BASE_ADDR + (uint32_t)(mu_index * (CONFIG_CRYPTO_DEV_NXP_HSE_MU_SIZE / HSE_NUM_MU)))
++/* service descriptor base address for selected MU */
++#define MU_SERV_DESC(mu_index) (uint32_t)(CONFIG_CRYPTO_DEV_NXP_HSE_DESC_BASE_ADDR + (uint32_t)(mu_index * (CONFIG_CRYPTO_DEV_NXP_HSE_DESC_SIZE / HSE_NUM_MU)))
+ 
+ #define HSE_STATUS_MASK     0xFFFF0000ul /* HSE global status FSR mask */
+ 
+@@ -25,32 +25,29 @@
+  *
+  * Return: 0 on service request success, error code otherwise
+  */
+-static inline int hse_err_decode(u32 *srv_rsp)
++static inline hse_command_ret_t hse_err_decode(uint32_t *srv_rsp)
+ {
+-	switch (*srv_rsp) {
+-	case HSE_SRV_RSP_OK:
+-		return CMD_RET_SUCCESS;
+-	case HSE_SRV_RSP_VERIFY_FAILED:
+-		printf("ERROR: auth tag/signature verification failed!\n");
+-		goto ret_err;
+-	case HSE_SRV_RSP_INVALID_ADDR:
+-		printf("ERROR: invalid service descriptor address!\n");
+-		goto ret_err;
+-	case HSE_SRV_RSP_INVALID_PARAM:
+-		printf("ERROR: invalid service descriptor parameter!\n");
+-		goto ret_err;
+-	case HSE_SRV_RSP_KEY_INVALID:
+-		printf("ERROR: key flags do not match requested operation!\n");
+-		goto ret_err;
+-	case HSE_SRV_RSP_NOT_ALLOWED:
+-		printf("ERROR: operation not allowed!\n");
+-		goto ret_err;
+-	default:
+-		printf("ERROR: unknown error, EFAULT!\n");
+-		goto ret_err;
+-	}
++    switch (*srv_rsp) {
++    case HSE_SRV_RSP_OK:
++        return HSE_CMD_RET_SUCCESS;
++    case HSE_SRV_RSP_VERIFY_FAILED:
++        printf("ERROR: auth tag/signature verification failed!\n");
++        goto ret_err;
++    case HSE_SRV_RSP_INVALID_ADDR:
++        printf("ERROR: invalid service descriptor address!\n");
++        goto ret_err;
++    case HSE_SRV_RSP_INVALID_PARAM:
++        printf("ERROR: invalid service descriptor parameter!\n");
++        goto ret_err;
++    case HSE_SRV_RSP_KEY_INVALID:
++        printf("ERROR: key flags do not match requested operation!\n");
++        goto ret_err;
++    default:
++        printf("ERROR: unknown error, EFAULT (0x%x)!\n",*srv_rsp);
++        goto ret_err;
++    }
+ ret_err:
+-	return CMD_RET_FAILURE;
++    return HSE_CMD_RET_FAILURE;
+ }
+ 
+ /**
+@@ -71,44 +68,46 @@ ret_err:
+  * @tr[n]: Transmit Register n, offset 0x200 + 4*n
+  * @rr[n]: Receive Register n, offset 0x280 + 4*n
+  */
+-struct hse_mu_regs {
+-	const u32 ver;
+-	const u32 par;
+-	u32 cr;
+-	u32 sr;
+-	u8 reserved0[240]; /* 0xF0 */
+-	u32 fcr;
+-	const u32 fsr;
+-	u8 reserved1[8]; /* 0x8 */
+-	u32 gier;
+-	u32 gcr;
+-	u32 gsr;
+-	u8 reserved2[4]; /* 0x4 */
+-	u32 tcr;
+-	const u32 tsr;
+-	u32 rcr;
+-	const u32 rsr;
+-	u8 reserved3[208]; /* 0xD0 */
+-	u32 tr[16];
+-	u8 reserved4[64]; /* 0x40 */
+-	const u32 rr[16];
+-};
+-
+-static struct hse_mu_regs * const regs = (struct hse_mu_regs *)MU0B_BASE;
+-
++typedef struct hse_mu_regs {
++    const uint32_t ver;
++    const uint32_t par;
++    uint32_t cr;
++    uint32_t sr;
++    uint8_t reserved0[240]; /* 0xF0 */
++    uint32_t fcr;
++    const uint32_t fsr;
++    uint8_t reserved1[8]; /* 0x8 */
++    uint32_t gier;
++    uint32_t gcr;
++    uint32_t gsr;
++    uint8_t reserved2[4]; /* 0x4 */
++    uint32_t tcr;
++    const uint32_t tsr;
++    uint32_t rcr;
++    const uint32_t rsr;
++    uint8_t reserved3[208]; /* 0xD0 */
++    uint32_t tr[16];
++    uint8_t reserved4[64]; /* 0x40 */
++    const uint32_t rr[16];
++}hse_mu_regs_t;
++
++//static uint32_t hse_recv = 0x00U;
++static hse_mu_regs_t * const regs = (hse_mu_regs_t *)MU_BASE(CONFIG_CRYPTO_DEV_NXP_HSE_MU);
++static hseSrvDescriptor_t * const hseSrvDesc = (volatile hseSrvDescriptor_t *)MU_SERV_DESC(CONFIG_CRYPTO_DEV_NXP_HSE_MU);
+ /**
+  * hse_mu_check_status - check the HSE global status
+  *
+  * Return: 16 MSB of MU instance FSR
+  */
+-u16 hse_mu_check_status(void)
++uint16_t hse_mu_check_status(void)
+ {
+-	u32 fsrval;
++    uint32_t fsrval = 0x00U;
++
++    fsrval = ioread32(&regs->fsr);
+ 
+-	fsrval = ioread32(&regs->fsr);
+-	fsrval = (fsrval & HSE_STATUS_MASK) >> 16u;
++    fsrval = (fsrval & HSE_STATUS_MASK) >> 16u;
+ 
+-	return (u16)fsrval;
++    return (uint16_t)fsrval;
+ }
+ 
+ /**
+@@ -120,21 +119,25 @@ u16 hse_mu_check_status(void)
+  *
+  * Return: true for channel available, false for invalid index or channel busy
+  */
+-static bool hse_mu_channel_available(u8 channel)
++static bool hse_mu_channel_available(uint8_t channel)
+ {
+-	u32 fsrval, tsrval, rsrval;
+-
+-	if (unlikely(channel >= HSE_NUM_CHANNELS))
+-		return false;
+-
+-	fsrval = ioread32(&regs->fsr) & BIT(channel);
+-	tsrval = ioread32(&regs->tsr) & BIT(channel);
+-	rsrval = ioread32(&regs->rsr) & BIT(channel);
+-
+-	if (fsrval || !tsrval || rsrval)
+-		return false;
+-
+-	return true;
++    uint32_t fsrval = 0x00U, tsrval = 0x00U, rsrval = 0x00U;
++    bool result = true;
++    if (unlikely(channel >= HSE_NUM_CHANNELS))
++    {
++    	result = false;
++    	goto exit;
++    }
++    fsrval = ioread32(&regs->fsr) & BIT(channel);
++    tsrval = ioread32(&regs->tsr) & BIT(channel);
++    rsrval = ioread32(&regs->rsr) & BIT(channel);
++
++    if (fsrval || !tsrval || rsrval)
++    {
++    	result = false;
++    }
++exit:
++    return (result);
+ }
+ 
+ /**
+@@ -143,18 +146,22 @@ static bool hse_mu_channel_available(u8 channel)
+  *
+  * Return: true for response ready, false otherwise
+  */
+-bool hse_mu_msg_pending(u8 channel)
++bool hse_mu_msg_pending(uint8_t channel)
+ {
+-	u32 rsrval;
+-
+-	if (unlikely(channel >= HSE_NUM_CHANNELS))
+-		return false;
+-
+-	rsrval = ioread32(&regs->rsr) & BIT(channel);
+-	if (!rsrval)
+-		return false;
+-
+-	return true;
++    uint32_t rsrval = 0x00U;
++    bool result = true;
++    if (unlikely(channel >= HSE_NUM_CHANNELS))
++    {
++    	result = false;
++    	goto exit;
++    }
++    rsrval = ioread32(&regs->rsr) & BIT(channel);
++    if (!rsrval)
++    {
++    	result = false;
++    }
++exit:
++    return (result);
+ }
+ 
+ /**
+@@ -165,21 +172,26 @@ bool hse_mu_msg_pending(u8 channel)
+  * Return: 0 on success, -EINVAL for invalid parameter, -ECHRNG for channel
+  *         index out of range, -EBUSY for selected channel busy
+  */
+-int hse_mu_msg_send(u8 channel, u32 msg)
++int hse_mu_msg_send(uint8_t channel, uint32_t msg)
+ {
+-	if (unlikely(channel >= HSE_NUM_CHANNELS)) {
+-		printf("%s: channel %d outside range\n", __func__, channel);
+-		return -ECHRNG;
+-	}
+-
+-	if (unlikely(!hse_mu_channel_available(channel))) {
+-		printf("%s: channel %d busy\n", __func__, channel);
+-		return -EBUSY;
+-	}
+-
+-	iowrite32(msg, &regs->tr[channel]);
+-
+-	return 0;
++	int rc = 0x00;
++    if (unlikely(channel >= HSE_NUM_CHANNELS))
++    {
++        printf("%s: channel %d outside range\n", __func__, channel);
++        rc = -ECHRNG;
++        goto exit;
++    }
++
++    if (unlikely(!hse_mu_channel_available(channel)))
++    {
++        printf("%s: channel %d busy\n", __func__, channel);
++        rc = -EBUSY;
++        goto exit;
++    }
++
++    iowrite32(msg, &regs->tr[channel]);
++exit:
++    return (rc);
+ }
+ 
+ /**
+@@ -190,24 +202,31 @@ int hse_mu_msg_send(u8 channel, u32 msg)
+  * Return: 0 on success, -EINVAL for invalid parameter, -ECHRNG for channel
+  *         index out of range, -ENOMSG for no reply pending on selected channel
+  */
+-int hse_mu_msg_recv(u8 channel, u32 *msg)
++int hse_mu_msg_recv(uint8_t channel, uint32_t *msg)
+ {
+-	if (unlikely(!msg)) {
+-		printf("%s: msg buff pointer is null\n", __func__);
+-		return -EINVAL;
+-	}
+-
+-	if (unlikely(channel >= HSE_NUM_CHANNELS)) {
+-		printf("%s: channel %d outside range\n", __func__, channel);
+-		return -ECHRNG;
+-	}
+-
+-	if (unlikely(!hse_mu_msg_pending(channel)))
+-		return -ENOMSG;
+-
+-	*msg = ioread32(&regs->rr[channel]);
+-
+-	return 0;
++	int rc = 0x00;
++    if (unlikely(!msg))
++    {
++        printf("%s: msg buff pointer is null\n", __func__);
++        rc = -EINVAL;
++        goto exit;
++    }
++
++    if (unlikely(channel >= HSE_NUM_CHANNELS))
++    {
++        printf("%s: channel %d outside range\n", __func__, channel);
++        rc = -ECHRNG;
++        goto exit;
++    }
++
++    if (unlikely(!hse_mu_msg_pending(channel)))
++    {
++        rc = -ENOMSG;
++        goto exit;;
++    }
++    *msg = ioread32(&regs->rr[channel]);
++exit:
++    return (rc);
+ }
+ 
+ /**
+@@ -218,19 +237,65 @@ int hse_mu_msg_recv(u8 channel, u32 *msg)
+  *
+  * Return: 0 on success, error code otherwise
+  */
+-int hse_send_recv(u8 channel, u32 send_buf, u32 *recv_buf)
++hse_command_ret_t hse_send_recv(uint8_t channel, uint32_t send_buf, uint32_t *recv_buf)
+ {
+-	int ret;
+-
+-	ret = hse_mu_msg_send(channel, send_buf);
+-	if (ret)
+-		return CMD_RET_FAILURE;
++    int ret = CMD_RET_SUCCESS;
++    hse_command_ret_t rc = HSE_CMD_RET_SUCCESS ;
++    ret = hse_mu_msg_send(channel, send_buf);
++    if (ret)
++    {
++    	rc = CMD_RET_FAILURE;
++    	goto exit;
++    }
++     /* wait for HSE response */
++    do
++    {
++        ret = hse_mu_msg_recv(channel, recv_buf);
++    } while (ret == -ENOMSG);
++
++    if (ret)
++    {
++    	rc = CMD_RET_FAILURE;
++    	goto exit;
++    }
++    rc = hse_err_decode(recv_buf);
++exit:
++    return (rc);
++}
+ 
+-	do {
+-		ret = hse_mu_msg_recv(channel, recv_buf);
+-	} while (ret == -ENOMSG);
+-	if (ret)
+-		return CMD_RET_FAILURE;
++/**
++ * hse_srv_req_sync - issue a synchronous service request (blocking)
++ * @channel: service channel index
++ * @srv_desc: service descriptor
++ *
++ * Send a HSE service descriptor on the selected channel and block until the
++ * HSE response becomes available, then read the reply.
++ *
++ * Return: 0 on success, EINVAL for invalid parameter, ECHRNG for channel
++ *         index out of range, EBUSY for channel busy or none available,
++ *         ENOMSG for failure to read the HSE service response
++ */
++hse_command_ret_t hse_srv_req_sync(uint8_t channel, const void *srv_desc)
++{
+ 
+-	return hse_err_decode(recv_buf);
++    hse_command_ret_t ret = HSE_CMD_RET_SUCCESS ;
++    uint16_t hse_status_ret = 0x00U;
++    uint32_t hse_recv = 0x00U;
++    /* check if hse has been initialised */
++    hse_status_ret = hse_mu_check_status();
++    if (!(hse_status_ret & HSE_STATUS_INIT_OK))
++    {
++        /* keep printf to warn user if hse fw is missing */
++        printf("ERROR: HSE not initialised or missing firmware!\n");
++        ret = CMD_RET_FAILURE;
++        goto exit;
++    }
++ 
++    memcpy(hseSrvDesc, srv_desc, sizeof(hseSrvDescriptor_t));
++
++    ret = hse_send_recv(channel,
++                        hseSrvDesc,
++                        &hse_recv);
++exit:
++    return(ret);
+ }
+diff --git a/env/mmc.c b/env/mmc.c
+old mode 100644
+new mode 100755
+index dfc0af0c0a..7691f500a5
+--- a/env/mmc.c
++++ b/env/mmc.c
+@@ -18,19 +18,21 @@
+ #include <part.h>
+ #include <search.h>
+ #include <errno.h>
+-
+-#if 1
++
+ #include <configs/s32-gen1_hper_gen2.h>
+-#include <configs/EMMC_address.h>
+ #include <configs/SRAM_address.h>
+-#endif /* CONFIG_TARGET_S32GEN1_HPER_GEN2 */
+-
++#include <configs/EMMC_address.h>
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++#include "hper_gen2/secure_boot.h"
++#define BOOT_ARGS_NAME "BootArgs"
++#endif
+ #define __STR(X) #X
+ #define STR(X) __STR(X)
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+ 
+ #if CONFIG_IS_ENABLED(OF_CONTROL)
++
+ static inline int mmc_offset_try_partition(const char *str, s64 *val)
+ {
+ 	disk_partition_t info;
+@@ -399,13 +401,16 @@ err:
+ static int env_mmc_load(void)
+ {
+ #if !defined(ENV_IS_EMBEDDED)
+-	ALLOC_CACHE_ALIGN_BUFFER(char, buf, CONFIG_ENV_SIZE);
++	ALLOC_CACHE_ALIGN_BUFFER(char, buf, HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_SIZE);
+ 	struct mmc *mmc;
+ 	u32 offset;
+ 	int ret;
+ 	int dev = mmc_get_env_dev();
+ 	const char *errmsg;
+ 	env_t *ep = NULL;
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++	SecureBootReturnCode_t result = E_SB_OK;
++#endif
+ 
+ 	mmc = find_mmc_device(dev);
+ 
+@@ -420,12 +425,22 @@ static int env_mmc_load(void)
+ 		goto fini;
+ 	}
+ 
+-	if (read_env(mmc, CONFIG_ENV_SIZE, offset, buf)) {
+-		errmsg = "!read failed";
++#if CONFIG_IS_ENABLED(HPER_GEN2_UBOOT_SECURE_BOOT)
++	result =  secureLoadImage(mmc, buf, offset, HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_SIZE, BOOT_ARGS_NAME);
++	if (E_SB_OK != result)
++	{
++		printf("secureLoadImage fail for %s (result= %d) \n", BOOT_ARGS_NAME, result);
+ 		ret = -EIO;
+ 		goto fini;
+ 	}
+-
++#else
++	ret = read_env(mmc, CONFIG_ENV_SIZE , offset, buf);
++	if (0x00 != ret)
++	{
++		ret = -EIO;
++		goto fini;
++	}
++#endif
+ 	ret = env_import(buf, 1);
+ 	if (!ret) {
+ 		ep = (env_t *)buf;
+diff --git a/env/mmc_hpergen2.c b/env/mmc_hpergen2.c
+new file mode 100755
+index 0000000000..8bd9365acd
+--- /dev/null
++++ b/env/mmc_hpergen2.c
+@@ -0,0 +1,148 @@
++/*
++ * (C) Copyright 2022 Continental
++ *
++ * All rights exclusively reserved for Continental unless otherwise expressly agreed.
++ */
++
++#include <common.h>
++#include <env.h>
++#include <env_internal.h>
++#include <memalign.h>
++#include <mmc.h>
++#include <part.h>
++#include <errno.h>
++
++#if defined(CONFIG_TARGET_S32GEN1_HPER_GEN2)
++#include <configs/s32-gen1_hper_gen2.h>
++#include <configs/EMMC_address.h>
++#include <configs/SRAM_address.h>
++
++enum bank {
++	BANK_A = 0,
++	BANK_B,
++	BANK_INVALID
++};
++
++#define BOOT_MODE_APPLICATION   0
++
++static enum bank hpergen2_get_current_bank(void)
++{
++	/* Read current bank (A/B) in memory exchange area and jump
++	 * to the U-boot params partition in bank A or B (default A) */
++	u32 bank_config = *(u32*)HPCGEN2_SRAM_BOOT_BANK_FLAG_START_ADDRESS;
++
++	printf("Boot bank flag's value in SRAM: %u\n", bank_config);
++
++	switch (bank_config)
++	{
++	case BOOTLOADER_BANK_A:
++		return BANK_A;
++	case BOOTLOADER_BANK_B:
++		return BANK_B;
++	default:
++		return BANK_INVALID;
++	}
++}
++
++static enum bank hpergen2_swap_bank(enum bank current_bank)
++{
++	switch (current_bank)
++	{
++	case BANK_A:
++		return BANK_B;
++	case BANK_B:
++		return BANK_A;
++	default:
++		return BANK_INVALID;
++	}
++}
++
++uint32_t hpergen2_get_boot_mode(void)
++{
++	/* Read current boot mode in memory exchange area and jump
++	 * to the according section in the U-boot params partition
++	 * Default: select boot mode 0 */
++	uint32_t boot_mode = *(uint32_t*)HPCGEN2_SRAM_BOOT_MODE_FLAG_START_ADDRESS;
++
++	printf("Boot mode flag's value in SRAM: %u\n", boot_mode);
++
++	return (uint32_t) boot_mode;
++}
++
++static int hpergen2_mmc_env_bank_offset(struct mmc *mmc, enum bank bank, uint32_t *offset)
++{
++    int rc = 0x00;
++	static const char bank_to_char[] = {'A', 'B'};
++    *offset = HPCGEN2_USER_AREA_U_BOOT_PARAMS_A_START_ADDRESS;
++    if(bank == BANK_B)
++    {
++        *offset = HPCGEN2_USER_AREA_U_BOOT_PARAMS_B_START_ADDRESS;
++    }
++    printf("U-boot environment will be loaded from bank %c\n", bank_to_char[bank]);
++    return (rc);
++}
++
++static inline int hpergen2_mmc_offset(struct mmc *mmc, uint32_t *offset)
++{
++    int rc = 0x00;
++    static const char bank_to_char[] = {'A', 'B'};
++    enum bank bank = hpergen2_get_current_bank();
++    unsigned int boot_mode = hpergen2_get_boot_mode();
++
++    if (bank == BANK_INVALID)
++    {
++        bank = BANK_A;
++        printf("Current bank value is invalid, using bank %c as current bank\n", bank_to_char[bank]);
++    }
++
++    printf("Loading U-boot environment from bank %c\n", bank_to_char[bank]);
++    rc = hpergen2_mmc_env_bank_offset(mmc, bank, offset);
++    if (0x00 != rc)
++    {
++        printf("Invalid bank %c U-boot environment header: %d\n", bank_to_char[bank], rc);
++
++        if (boot_mode != BOOT_MODE_APPLICATION)
++        {
++            bank = hpergen2_swap_bank(bank);
++            printf("Loading U-boot environment from bank %c\n", bank_to_char[bank]);
++            rc = hpergen2_mmc_env_bank_offset(mmc, bank, offset);
++            if (0x00 != rc)
++            {
++                printf("Invalid bank %c U-boot environment header: %d\n", bank_to_char[bank], rc);
++                goto exit;
++            }
++        }
++        else
++        {
++            // Hold here to trigger a watchdog reboot
++            while (true);
++        }
++    }
++    printf("U-boot environment offset = 0x%08x \n", *offset);
++exit:
++    return (rc);
++}
++
++/* Overrides the `mmc.c` weak function, will be called by env_mmc_load() */
++int mmc_get_env_addr(struct mmc *mmc, int copy, u32 *env_addr)
++{
++	(void)copy;
++	s64 offset = 0;
++	int rc;
++
++	printf("\n");
++
++	if ((rc = hpergen2_mmc_offset(mmc, &offset)) != 0)
++	{
++		return rc;
++	}
++
++	if (offset < 0)
++		offset += mmc->capacity;
++
++	*env_addr = (u32)offset;
++
++	return 0;
++}
++
++#endif /* CONFIG_TARGET_S32GEN1_HPER_GEN2 */
+diff --git a/include/configs/s32-cc.h b/include/configs/s32-cc.h
+old mode 100644
+new mode 100755
+index e81a29d2dc..0acc2043e6
+--- a/include/configs/s32-cc.h
++++ b/include/configs/s32-cc.h
+@@ -177,6 +177,11 @@
+ #  define XEN_EXTRA_ENV_SETTINGS  ""
+ #endif
+ 
++#if IS_ENABLED(CONFIG_HPER_GEN2_UBOOT_SECURE_BOOT) && (SECURE_BOOT_FLAG)
++	#define MMC_READ_FUNCTION "readsecure"
++#else
++	#define MMC_READ_FUNCTION "read"
++#endif
+ #define S32CC_ENV_SETTINGS \
+ 	BOOTENV \
+ 	"boot_fdt=try\0" \
+@@ -221,9 +226,8 @@
+ 	"bootargsram=setenv bootargs console=${console},${baudrate} root=/dev/ram rw earlycon ip=${ipaddr}:${serverip}::${netmask}::pfe0:off hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M\0" \
+ 	"boot_linux =echo Booting Linux from eMMC; " \
+ 		"run bootargsmmc;"\
+-		"ext4load mmc ${mmcdev}:${mmcpart} ${loadaddr} /boot/Image;"\
+-		"ext4load mmc ${mmcdev}:${mmcpart} ${fdt_addr} /boot/board.dtb;"\
+-		"pfeng stop; "\
++		"mmc " MMC_READ_FUNCTION " ${loadaddr} ${penta_kernel_emmc_block} ${penta_kernel_max_blk_count};" \
++		"mmc " MMC_READ_FUNCTION " ${fdt_addr} ${penta_dtb_emmc_block} ${penta_dtb_max_blk_count};" \
+ 		"${boot_mtd} ${loadaddr} - ${fdt_addr};\0" \
+ 	"flashbootargs=setenv bootargs console=${console},${baudrate}" \
+ 		" root=/dev/ram rw earlycon " EXTRA_BOOT_ARGS ";"\
+@@ -308,6 +312,10 @@
+ 	"ramdisk_addr=" __stringify(S32CC_RAMDISK_ADDR) "\0" \
+ 	"script=boot.scr\0" \
+ 	"serverip=192.168.3.10\0" \
++	"penta_dtb_emmc_block=0x14510\0" \
++	"penta_dtb_max_blk_count=0x100\0" \
++	"penta_kernel_emmc_block=0x510\0" \
++	"penta_kernel_max_blk_count=0x14000\0" \
+ 	"update_sd_firmware_filename=fip.s32\0" \
+ 	"update_sd_firmware=" \
+ 		"if test ${ip_dyn} = yes; " \
+diff --git a/include/hper_gen2/secure_boot.h b/include/hper_gen2/secure_boot.h
+new file mode 100755
+index 0000000000..6a35b41b94
+--- /dev/null
++++ b/include/hper_gen2/secure_boot.h
+@@ -0,0 +1,147 @@
++/*
++ * (C) Copyright 2022 Continental
++ *
++ * All rights exclusively reserved for Continental unless otherwise expressly agreed.
++ */
++
++#ifndef _HPER_GEN2_SECURE_BOOT_H
++#define _HPER_GEN2_SECURE_BOOT_H
++
++#include <linux/types.h>
++#include <linux/stddef.h>
++#include <malloc.h>
++#include <memalign.h>
++#include <mmc.h>
++#define SECUREBOOT_HEADER_SIZE_IN_BYTE 1024
++#define SECUREBOOT_HEADER_MAGIC_ID 0x42496D67 /* Aka string "BImg" without null-terminated character */
++#define SECUREBOOT_CERTIFICATE_SIZE_BYTES 512
++#define SECUREBOOT_HASH_SIZE_IN_BYTE 32
++#define SECUREBOOT_SIGNATURE_SIZE_BYTES 512
++#define SECUREBOOT_IMG_DIGEST_SIZE_BYTES 64
++
++#define RET_OK     ((int32_t)0)
++#define STREAM_ID  ((hseStreamId_t)255u)
++
++/**
++* @brief Enum definition of secure boot APIs return code.
++*/
++typedef enum SecureBootReturnCode {
++    E_SB_OK = 0u,                /**< secure boot operations success                                     */
++    E_SB_HEADER_HANDLING_ERROR,  /**< secure boot failed due header size                                 */
++    E_SB_HEADER_INTEGRITY_ERROR, /**< secure boot failed due header format                               */
++    E_SB_HEADER_SIGNATURE_ERROR, /**< secure boot failed due to invalid signature or sign operation fail */
++    E_SB_IMAGE_HANDLING_ERROR,   /**< secure boot failed due to hash operation fail                      */
++    E_SB_IMAGE_HASH_ERROR,       /**< secure boot failed due to hash invalid hash                        */
++    E_SB_INVALID_PARAMS_ERROR,   /**< secure boot failed due to invalid parameters                       */
++    E_SB_BUFFER_ERROR,           /**< secure boot failed due to buffer allocation issue                  */
++	E_SB_INVALID_PARAMS,          /**< secure boot failed due to invalid params                          */
++    E_SB_ERROR_LAST              /**< secure boot last error code                                        */
++} SecureBootReturnCode_t;
++
++/**
++ * @brief Structure which contains the header information of the certificate.
++ *
++ * The header is stored in big endian format (RAM/MMC) Require getter on
++ * these RAW data to convert them from big endian to the endianness of the SoC architecture.
++ *
++ */
++typedef struct __attribute__((__packed__)) {
++    uint32_t id;
++    uint32_t version;
++    uint32_t img_items;
++    uint8_t reserved[4];
++} header_raw_t;
++
++/**
++ * @brief Structure which contains the signature information.
++ *
++ * The signature information are stored in big endian format (RAM/MMC). Require getters on
++ * these RAW data to convert them from big endian to the endianness of the SoC architecture.
++ */
++typedef struct __attribute__((__packed__)) {
++    uint32_t scheme_id;
++    uint32_t hashalg_id;
++    uint32_t key_id;
++    uint32_t s_size;
++    uint32_t s_offset;
++    uint32_t r_size;
++    uint32_t r_offset;
++    uint32_t salt_len;
++    uint8_t reserved[16];
++} signature_info_raw_t;
++
++/**
++ * @brief Structure which contains the image information.
++ *
++ * The image information are stored in big endian format (RAM/MMC). Require getters on
++ * these RAW data to convert them from big endian to the endianness of the SoC architecture.
++ */
++typedef struct __attribute__((__packed__)) {
++    uint32_t type;
++    uint32_t size;
++    uint32_t dest_addr_low;
++    uint32_t dest_addr_high;
++    uint32_t entry_offset;
++    uint32_t hashalg_id;
++    uint32_t hashsize;
++    uint32_t hashoffset;
++    uint32_t source_part;
++    uint32_t dest_part;
++    uint8_t reserved[8];
++} image_info_raw_t;
++
++/**
++ * @brief Structure which contains the data of the certificate.
++ *
++ */
++typedef struct __attribute__((__packed__)) {
++    header_raw_t header;
++    signature_info_raw_t sig_info;
++    image_info_raw_t img_info;
++    uint8_t img_hash[SECUREBOOT_IMG_DIGEST_SIZE_BYTES];
++    uint8_t reserved[336];
++} certificate_t;
++
++
++/**
++ * @brief Structure which contains the Boot Content Certificate.
++ *
++ *
++ * It is composed of:
++ *  - the certificate: filled with image and signature information
++ *  - the image hash: digest of the image to load in RAM computed with a SHA256 algorithm
++ *  - the signature: the RSA-PSS signature of the certificate
++ */
++typedef struct __attribute__((__packed__)) {
++    certificate_t certificate;
++    uint8_t signature[SECUREBOOT_SIGNATURE_SIZE_BYTES];
++} bccert_t;
++
++
++/**
++ * @brief   secure load image
++ *
++ * @param[in] _write_address       the RAM address of the binary
++ * @param[in] _read_address        Te NOR address of the binary
++ * @param[in] _size                size of the binary partition.
++ * @param[in/out] _header          isolated header
++ * @param[in] app_name             name of the binary
++ * @return secure_boot_return_code_t.
++ * @retval E_SB_OK if image verification successfully verified.
++ * @retval E_SB_HEADER_HANDLING_ERROR if invalid parameters are given.
++ * @retval E_SB_OK if secure boot operations success
++ * @retval E_SB_HEADER_HANDLING_ERROR secure boot failed due header size
++ * @retval E_SB_HEADER_INTEGRITY_ERROR secure boot failed due header format
++ * @retval E_SB_HEADER_SIGNATURE_ERROR secure boot failed due to invalid signature or sign operation fail
++ * @retval E_SB_IMAGE_HANDLING_ERROR secure boot failed due to hash operation fail
++ * @retval E_SB_IMAGE_HASH_ERROR secure boot failed due to hash invalid hash
++ * @retval E_SB_INVALID_PARAMS_ERROR secure boot failed due to invalid parameters
++ * @retval E_SB_BUFFER_ERROR secure boot failed due to buffer allocation issue
++ */
++
++SecureBootReturnCode_t secureLoadImage(struct mmc *mmc, void* write_address,
++                                       const void * read_address,
++                                       size_t size, char* app_name);
++
++#endif /* _HPER_GEN2_SECURE_BOOT_H */
++
+diff --git a/include/hse/hpe_hse_common.h b/include/hse/hpe_hse_common.h
+new file mode 100755
+index 0000000000..a82b6d6cff
+--- /dev/null
++++ b/include/hse/hpe_hse_common.h
+@@ -0,0 +1,46 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++#ifndef HPE_HSE_COMMON_H__
++#define HPE_HSE_COMMON_H__
++
++#include <cpu_func.h>
++#include <malloc.h>
++#include <errno.h>
++#include <stddef.h>
++#include <dm.h>
++#include <string.h>
++#include <hse_mu.h>
++#include <hse_abi.h>
++
++/**
++ * @brief Enum definition of HSE services APIs return code.
++ */
++typedef enum hse_services_ret
++{
++    HSE_SERVICES_OK                           = 0u, /**< Operation successfully performed       */
++    HSE_SERVICES_OPERATION_FAILED             = 1u, /**< Operation failed                       */
++    HSE_SERVICES_INVALID_PARAM                = 2u, /**< Invalid parameters are given           */
++    HSE_SERVICES_MU_CHANNEL_ALLOCATION_FAILED = 3u, /**< HSE MU channel allocation failed       */
++    HSE_SERVICES_LAST_ERROR                         /**< Service last error code */
++} hse_services_ret_t;
++
++/**
++ * @brief Enum definition of HSE key index <catalog, group , slot>.
++ */
++typedef struct key_ref
++{
++    uint8_t catalog_id; /**< catalog_id 0 RAM, 1 NVM              */
++    uint8_t group_id;   /**< group_id in witch is defined the key */
++    uint8_t slot_id;    /**< key order in the group               */
++    uint8_t reserved;   /**< reserved to ensure alignment         */
++} key_ref_t;
++
++#endif /* !HPE_HSE_COMMON_H__ */
+diff --git a/include/hse/hpe_hse_hash.h b/include/hse/hpe_hse_hash.h
+new file mode 100755
+index 0000000000..220690b198
+--- /dev/null
++++ b/include/hse/hpe_hse_hash.h
+@@ -0,0 +1,19 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++#ifndef HPE_HSE_HASH_H_
++#define HPE_HSE_HASH_H_
++
++#include <hpe_hse_common.h>
++
++hse_services_ret_t hpe_hse_hash(uint8_t* buffer , uint32_t size, hseHashAlgo_t HashAlgo,
++		                        uint8_t* hash, uint32_t hash_size);
++#endif /* !HPE_HSE_HASH_H_ */
+diff --git a/include/hse/hpe_hse_random.h b/include/hse/hpe_hse_random.h
+new file mode 100755
+index 0000000000..7519cd7f88
+--- /dev/null
++++ b/include/hse/hpe_hse_random.h
+@@ -0,0 +1,19 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++#ifndef HPE_HSE_RANDOM_H_
++#define HPE_HSE_RANDOM_H_
++
++
++#include <hpe_hse_common.h>
++
++hse_services_ret_t hpe_hse_rng(uint8_t* buffer , size_t size);
++#endif /* HPE_HSE_RANDOM_H_ */
+diff --git a/include/hse/hpe_hse_signature.h b/include/hse/hpe_hse_signature.h
+new file mode 100755
+index 0000000000..1fc4e80c84
+--- /dev/null
++++ b/include/hse/hpe_hse_signature.h
+@@ -0,0 +1,21 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++#ifndef HPE_HSE_SIGNATURE_H__
++#define HPE_HSE_SIGNATURE_H__
++
++#include <hpe_hse_common.h>
++
++hse_services_ret_t hpe_hse_rsa_pss_signature(key_ref_t key , hseSignSchemeEnum_t SignScheme_id,hseHashAlgo_t HashAlgo,
++		                                     uint8_t* buffer , size_t size,
++		                                     uint8_t* signature , uint32_t signature_length, uint32_t salt_len);
++
++#endif /* !HPE_HSE_SIGNATURE_H__ */
+diff --git a/include/hse/hse_abi.h b/include/hse/hse_abi.h
+old mode 100644
+new mode 100755
+index 1233e4b859..66e5a71275
+--- a/include/hse/hse_abi.h
++++ b/include/hse/hse_abi.h
+@@ -8,476 +8,22 @@
+ #ifndef HSE_ABI_H
+ #define HSE_ABI_H
+ 
+-#include <common.h>
+ #include <mmc.h>
+-#include <uuid.h>
+-
+-#define BYTES_TO_BITS(x)	((x) * 8u)
+-
+-#define MODULUS_OFFSET  0x21u
+-#define MODULUS_SIZE    0x100u
+-#define EXPONENT_OFFSET 0x123u
+-#define EXPONENT_SIZE   0x3u
+-
+-#define HSE_SRV_RSP_OK            0x55A5AA33ul
+-#define HSE_SRV_RSP_VERIFY_FAILED 0x55A5A164ul
+-#define HSE_SRV_RSP_INVALID_ADDR  0x55A5A26Aul
+-#define HSE_SRV_RSP_INVALID_PARAM 0x55A5A399ul
+-#define HSE_SRV_RSP_NOT_ALLOWED   0xAA55A21Cul
+-#define HSE_SRV_RSP_KEY_INVALID   0xA5AA52B4ul
+-
+-#define HSE_SYS_IMG_MAX_SIZE 0xC000u
+-#define HSE_FIP_AUTH_LEN     0x100u
+-#define HSE_AUTH_TAG_OFFSET  0x200u
+-
+-#define HSE_IVT_BLK      8
+-
+-#define HSE_EXT_FLASH_SD   2u
+-#define HSE_EXT_FLASH_PAGE 512u
+-
+-#define HSE_CHANNEL_ADMIN   0u
+-#define HSE_CHANNEL_GENERAL 1u
+-
+-#define HSE_STATUS_INIT_OK        BIT(8)
+-#define HSE_STATUS_PRIMARY_SYSIMG BIT(14)
+-#define HSE_IVT_BOOTSEQ_BIT       BIT(3)
+-
+-#define HSE_SRV_ID_SET_ATTR                 0x00000001ul
+-#define HSE_SRV_ID_PUBLISH_SYS_IMAGE        0x00000011ul
+-#define HSE_SRV_ID_FORMAT_KEY_CATALOGS      0x00000101ul
+-#define HSE_SRV_ID_IMPORT_KEY               0x00000104ul
+-#define HSE_SRV_ID_SMR_ENTRY_INSTALL        0x00000501ul
+-#define HSE_SRV_ID_CORE_RESET_ENTRY_INSTALL 0x00000503ul
+-
+-#define HSE_ACCESS_MODE_ONE_PASS 0u
+-
+-#define HSE_APP_CORE3 3u /* A53_0 */
+-
+-#define HSE_PUBLISH_UPDATED_DATA_SET BIT(0)
+-#define HSE_PUBLISH_ALL_DATA_SETS    BIT(1)
+-
+-#define HSE_SGT_OPTION_NONE 0u
+-
+-#define HSE_SMR_CFG_FLAG_SD_FLASH     0x2u
+-#define HSE_SMR_CFG_FLAG_INSTALL_AUTH BIT(2)
+-#define HSE_SMR_ENTRY_1               BIT(1)
+-
+-#define HSE_CR_SANCTION_KEEP_CORE_IN_RESET 0x7455u
+-#define HSE_CR_AUTO_START                  0x35A5u
+-
+-#define HSE_MU_ACTIVATED      0xA5u
+-#define HSE_MU_DEACTIVATED    0x5Au
+-#define HSE_MU_CONFIG_ATTR_ID 20u
+-
+-#define HSE_SIGN_RSASSA_PKCS1_V15 0x93u
+-#define HSE_HASH_ALGO_SHA_1       2u
+-
+-#define HSE_INVALID_KEY_HANDLE              0xFFFFFFFFul
+-#define HSE_BOOT_KEY_HANDLE                 0x010700u
+-#define HSE_SMR_DECRYPT_KEY_HANDLE_NOT_USED 0ul
+-
+-#define HSE_MU0_MASK    BIT(0)
+-#define HSE_MU1_MASK    BIT(1)
+-#define HSE_MU2_MASK    BIT(2)
+-#define HSE_MU3_MASK    BIT(3)
+-#define HSE_ALL_MU_MASK (HSE_MU0_MASK | HSE_MU1_MASK | \
+-			 HSE_MU2_MASK | HSE_MU3_MASK)
+-
+-#define HSE_KF_USAGE_VERIFY BIT(3)
+-
+-#define HSE_KEY_OWNER_ANY  0u
+-#define HSE_KEY_OWNER_CUST 1u
+-#define HSE_KEY_OWNER_OEM  2u
+-
+-#define HSE_KEY_TYPE_AES           0x12u
+-#define HSE_KEY_TYPE_HMAC          0x20u
+-#define HSE_KEY_TYPE_SHARED_SECRET 0x30u
+-#define HSE_KEY_TYPE_ECC_PAIR      0x87u
+-#define HSE_KEY_TYPE_ECC_PUB       0x88u
+-#define HSE_KEY_TYPE_ECC_PUB_EXT   0x89u
+-#define HSE_KEY_TYPE_RSA_PAIR      0x97u
+-#define HSE_KEY_TYPE_RSA_PUB       0x98u
+-#define HSE_KEY_TYPE_RSA_PUB_EXT   0x99u
+-
+-#define HSE_KEY128_BITS  128u
+-#define HSE_KEY256_BITS  256u
+-#define HSE_KEY512_BITS  512u
+-#define HSE_KEY521_BITS  521u
+-#define HSE_KEY638_BITS  638u
+-#define HSE_KEY1024_BITS 1024u
+-#define HSE_KEY2048_BITS 2048u
+-#define HSE_KEY4096_BITS 4096u
+-
+-/* see include/mmc.h */
+-struct mmc *hse_init_mmc_device(int dev, bool force_init);
+-int hse_mmc_read(void *addr, u32 blk, u32 cnt);
+-int hse_mmc_write(void *addr, u32 blk, u32 cnt);
+-
+-/**
+- * struct fip_toc_header - FIP ToC header
+- * @name: fip name/signature, fixed
+- * @serial_number: fip serial number, fixed
+- * @flags: flags associated with the data
+- */
+-struct fip_toc_header {
+-	u32 name;
+-	u32 serial_number;
+-	u64 flags;
+-};
+-
+-/**
+- * struct fip_toc_entry - FIP ToC entry
+- * @uuid: ToC entry unique ID
+- * @offset: offset of entry in FIP
+- * @size: size of entry
+- * @flags: flags associated with the data
+- */
+-struct fip_toc_entry {
+-	struct uuid uuid;
+-	u64 offset;
+-	u64 size;
+-	u64 flags;
+-};
+-
+-/**
+- * struct app_boot_hdr - app load, entry and size info
+- * @header: start of application image
+- * @ram_load: address at which to load app code
+- * @ram_entry: address at which to jump execution
+- * @code_len: length of subsequent code
+- */
+-struct app_boot_hdr {
+-	u32 header;
+-	u32 ram_load;
+-	u32 ram_entry;
+-	u32 code_len;
+-};
+-
+-/**
+- * struct ivt - ivt held in flash
+- * @header: header showing the start of IVT
+- * @dcd_self_test: ptr to cfg data used for BIST
+- * @dcd_self_test_backup: ptr to backup cfg data used for BIST
+- * @dcd: ptr to DCD cfg data
+- * @dcd_backup: ptr to backup DCD cfg data
+- * @hse_fw: ptr to HSE-H firmware in flash
+- * @hse_fw_backup: ptr to backup HSE-H fw in flash
+- * @app_boot: ptr to application boot code in flash
+- * @app_boot_backup: ptr to backup application boot code in flash
+- * @boot_cfg: cfg data used to select boot configuration
+- * @lc_cfg: cfg data used for advancing lifecycle
+- * @sys_img: ptr to SYS-IMG file in flash
+- * @sys_img_backup: ptr to SYS-IMG backup file in flash
+- * @sys_img_ext_flash_type: cfg data to select flash type for ASB
+- * @sys_img_flash_page_size: cfg data to select flash erasable page size
+- * @app_bsb_ext_flash_type: cfg data to select flash type for BSB
+- * @gmac: hash of data from IVT
+- */
+-struct ivt {
+-	u32 ivt_header;
+-	u8 reserved1[4];
+-	u32 dcd_self_test;
+-	u32 dcd_self_test_backup;
+-	u32 dcd;
+-	u32 dcd_backup;
+-	u32 hse_fw;
+-	u32 hse_fw_backup;
+-	u32 app_boot;
+-	u32 app_boot_backup;
+-	u32 boot_cfg;
+-	u32 lc_cfg;
+-	u8 reserved2[4];
+-	u32 sys_img;
+-	u32 sys_img_backup;
+-	u32 sys_img_ext_flash_type;
+-	u32 sys_img_flash_page_size;
+-	u32 app_bsb_ext_flash_type;
+-	u8 reserved3[168];
+-	u32 gmac[4];
+-	/* pad to block size - 512 bytes */
+-	u8 reserved4[256];
+-} __packed;
+-
+-/**
+- * struct hse_key_group_cfg_entry - key group entry in key catalog
+- * @mu_mask: mu instance for the key group
+- * @group_owner: key group owner
+- * @key_type: group key type
+- * @num_key_slots: max number of keys in slot
+- * @max_key_bit_len: max bit length of keys in group
+- */
+-struct hse_key_group_cfg_entry {
+-	u8 mu_mask;
+-	u8 group_owner;
+-	u8 key_type;
+-	u8 num_key_slots;
+-	u16 max_key_bit_len;
+-	u8 reserved[2];
+-} __packed;
+-
+-/**
+- * struct hse_format_key_catalogs_srv - key catalog format service
+- * @nvm_key_catalog_cfg_addr: ptr to NVM key catalog
+- * @ram_key_catalog_cfg_addr: ptr to RAM key catalog
+- */
+-struct hse_format_key_catalogs_srv {
+-	u64 nvm_key_catalog_cfg_addr;
+-	u64 ram_key_catalog_cfg_addr;
+-} __packed;
+-
+-/**
+- * struct hse_key_info - key properties
+- * @key_flags: define key usage
+- * @key_bit_len: for RSA, bit length of public modulus n
+- * @key_counter: 28 bit counter to prevent rollback attacks on key
+- * @smr_flags: which SMR must be checked before using key; 0 is unused
+- * @key_type: key type
+- * @pub_exponent_size: size in bytes of RSA public exponent e
+- */
+-struct hse_key_info {
+-	u16 key_flags;
+-	u16 key_bit_len;
+-	u32 key_counter;
+-	u32 smr_flags;
+-	u8 key_type;
+-	u8 pub_exponent_size;
+-	u8 reserved[2];
+-} __packed;
+-
+-/**
+- * struct hse_import_key_srv - key import service
+- * @key_handle: specified slot in which to add/update the key
+- * @key_info_addr: ptr to struct hse_key_info
+- * @key_addr[2]: ptr to key values
+- *               [0] - RSA public modulus n (big-endian)
+- *               [1] - RSA public exponent e (big-endian)
+- * @key_len[2]: length in bytes for above key values
+- * @cipher_key: decryption key handle, set to HSE_INVALID_KEY_HANDLE
+- * @auth_key: auth key handle, set to HSE_INVALID_KEY_HANDLE
+- */
+-struct hse_import_key_srv {
+-	u32 key_handle;
+-	u64 key_info_addr;
+-	u64 key_addr[3];
+-	u16 key_len[3];
+-	u8 reserved1[2];
+-	u32 cipher_key;
+-	u8 reserved2[48];
+-	u32 auth_key;
+-	u8 reserved3[48];
+-} __packed;
+-
+-/**
+- * struct hse_rsa_pkcs1v15_scheme - parameters for RSASSA_PKCS1_V15
+- * @hash_algo: specify hash algorithm
+- *             must not be HSE_HASH_ALGO_NULL or HSE_HASH_ALGO_MD5
+- */
+-struct hse_rsa_pkcs1v15_scheme {
+-	u8 hash_algo;
+-	u8 reserved[3];
+-} __packed;
+-
+-/**
+- * struct hse_sign_scheme - parameters for signature generate/verify
+- * @sign_scheme: signature scheme
+- * @sch: RSASSA_PKCS1_V15 signature scheme parameters
+- */
+-struct hse_sign_scheme {
+-	u8 sign_scheme;
+-	u8 reserved1[3];
+-	struct hse_rsa_pkcs1v15_scheme sch;
+-	u8 reserved2[8];
+-} __packed;
+-
+-/**
+- * struct hse_smr_entry - SMR entry
+- * @smr_src: ptr to SMR load location in flash
+- * @smr_dst_addr: ptr to write location after authentication
+- * @smr_size: size in bytes of SMR to be loaded
+- * @config_flags: config flags for SMR entry
+- * @check_period: required by hse, must be 0
+- * @key_handle: key from key catalog used to authenticate SMR
+- * @sign_sch: auth scheme used to verify the SMR
+- * @auth_tag: location of SMR signature in flash
+- * @decrypt_key_handle: specifies parameters for smr decryption
+- * @version_offset: unused, must be set to 0
+- */
+-struct hse_smr_entry {
+-	u32 smr_src;
+-	u64 smr_dst_addr;
+-	u32 smr_size;
+-	u8 config_flags;
+-	u8 reserved1[3];
+-	u32 check_period;
+-	u32 key_handle;
+-	struct hse_sign_scheme sign_sch;
+-	u32 auth_tag;
+-	u8 reserved2[4];
+-	u32 decrypt_key_handle;
+-	u8 reserved3[12];
+-	u32 version_offset;
+-} __packed;
+-
+-/**
+- * struct hse_cr_entry - core reset entry
+- * @core_id: core to be un-gated once SMR authentication is successful
+- * @cr_sanction: sanction to apply if SMR authentication fails
+- * @preboot_smr_map: smr entries which need to be verified before
+- *                   booting to ungate core
+- * @pass_reset: first instruction to jump to if verification is successful
+- * @start_option: specifies if the core is automatically released from
+- *                reset or not
+- */
+-struct hse_cr_entry {
+-	u8 core_id;
+-	u8 reserved1[1];
+-	u16 cr_sanction;
+-	u32 preboot_smr_map;
+-	u32 pass_reset;
+-	u8 reserved2[12];
+-	u16 start_option;
+-	u8 reserved3[6];
+-} __packed;
+-
+-/**
+- * struct hse_smr_install_srv - SMR installation service
+- * @access_mode: specify access mode
+- * @entry_index: specify SMR entry index to install
+- * @smr_entry_addr: ptr to struct hse_smr_entry
+- * @smr_data_addr: ptr to SMR data to install
+- * @smr_data_len: length of SMR data to install
+- * @smr_auth_tag_addr: ptr to SMR data authentication tag to verify
+- * @smr_auth_tag_len: length of SMR data authentication tag
+- */
+-struct hse_smr_install_srv {
+-	u8 access_mode;
+-	u8 entry_index;
+-	u8 reserved1[2];
+-	u64 smr_entry_addr;
+-	u64 smr_data_addr;
+-	u32 smr_data_len;
+-	u64 smr_auth_tag_addr;
+-	u8 reserved2[8];
+-	u16 smr_auth_tag_len;
+-	u8 reserved3[18];
+-} __packed;
+-
+-/**
+- * struct hse_cr_install_srv - Core Reset installation service
+- * @cr_entry_index: specify CR entry index to install
+- * @cr_entry_addr: ptr to struct hse_cr_entry
+- */
+-struct hse_cr_install_srv {
+-	u8 cr_entry_index;
+-	u8 reserved[3];
+-	u64 cr_entry_addr;
+-} __packed;
+-
+-/**
+- * struct hse_publish_sys_img_srv - SYS-IMG publish service
+- * @publish_options: specify which data sets to publish in SYS-IMG
+- * @publish_offset_addr: ptr to store SYS-IMG offset in flash, unused
+- * @buff_length_addr: as input, specify length of output buffer
+- *                    as output, number of bytes written by HSE into buffer
+- * @buff_addr: ptr to buffer in which to store SYS-IMG
+- */
+-struct hse_publish_sys_img_srv {
+-	u8 publish_options;
+-	u8 reserved1[3];
+-	u64 publish_offset_addr;
+-	u64 buff_length_addr;
+-	u64 buff_addr;
+-} __packed;
+-
+-/**
+- * struct hse_mu_instance_config - configure a MU interface
+- * @mu_config: specify MU state; MU0 cannot be deactivated
+- * @xrdc_domain_id: domain id to acces host interface memory chunk
+- * @shared_mem_chunk_size: which chunk of host interface memory to reserve
+- */
+-struct hse_mu_instance_config {
+-	u8 mu_config;
+-	u8 xrdc_domain_id;
+-	u16 shared_mem_chunk_size;
+-	u8 reserved[60];
+-} __packed;
+-
+-/**
+- * struct hse_mu_config - configure all MU interfaces
+- * @mu_instances: contains configuration for all MU interfaces
+- */
+-struct hse_mu_config {
+-	struct hse_mu_instance_config mu_instances[4];
+-} __packed;
+-
+-/**
+- * struct hse_getset_attr_srv - get attribute
+- * @attr_id: attribute ID
+- * @attr_len: attribute length, in bytes
+- * @attr: DMA address of the attribute
+- */
+-struct hse_getset_attr_srv {
+-	u16 attr_id;
+-	u8 reserved[2];
+-	u32 attr_len;
+-	u64 p_attr;
+-} __packed;
+-
+-/**
+- * struct hse_srv_desc - HSE service descriptor
+- * @srv_id: specify service for HSE to execute
+- * @union: specify service parameters
+- */
+-struct hse_srv_desc {
+-	u32 srv_id;
+-	u8 reserved[4];
+-	union {
+-		struct hse_getset_attr_srv getset_attr_req;
+-		struct hse_format_key_catalogs_srv format_catalogs_req;
+-		struct hse_import_key_srv import_key_req;
+-		struct hse_cr_install_srv cr_install_req;
+-		struct hse_smr_install_srv smr_install_req;
+-		struct hse_publish_sys_img_srv publish_sys_img_req;
+-	};
+-} __packed;
+-
+-/**
+- * struct hse_private - hse required data, stored at start of ddr
+- * @ivt: ivt stored for modifications required for secboot
+- * @app_boot_hdr: application load, entry and size data
+- * @srv_desc: service descriptor
+- * @key_info: key data for insertion into catalog
+- * @cr_entry: core reset entry data
+- * @smr_entry: secure memory region data
+- * @mu_config: mu configuration data
+- * @rsa_pubkey: contents of public key file, in DER format
+- * @rsa_modulus: rsa public key modulus, extracted from file
+- * @rsa_exponent: rsa public key exponent, extracted from file
+- * @fip_sign: fip signature in ddr
+- * @sys_img: hse-generated system image
+- * @sys_img_len: system image length
+- * @publish_offset: offset at which to write the updated sys_img
+- * @nvm_catalog: nvm key catalog
+- * @ram_catalog: ram key catalog
+- */
+-struct hse_private {
+-	struct ivt ivt;
+-	struct app_boot_hdr app_boot_hdr;
+-	struct hse_srv_desc srv_desc;
+-	struct hse_key_info key_info;
+-	struct hse_cr_entry cr_entry;
+-	struct hse_smr_entry smr_entry;
+-	struct hse_mu_config mu_config;
+-	u8 rsa_pubkey[512];
+-	u8 rsa_modulus[256];
+-	u8 rsa_exponent[3];
+-	u8 reserved;
+-	u8 fip_signature[256];
+-	u8 sys_img[HSE_SYS_IMG_MAX_SIZE];
+-	u32 sys_img_len;
+-	u32 publish_offset;
+-	struct hse_key_group_cfg_entry nvm_catalog[20];
+-	struct hse_key_group_cfg_entry ram_catalog[11];
+-};
++#include <hse_interface.h>
++
++#define HSE_DATA_LEN (4096U)
++#define HSE_SIGNATURE_LEN (4096U)
++#define HSE_HASH_LEN (1024U)
++#define DATA_SIZE (2048U)
++#define NUMBER_OF_RNG_BYTES (4096U)
++typedef struct __attribute__((packed)) hse_private
++{
++    uint8_t data[HSE_DATA_LEN];
++    uint8_t signature[HSE_SIGNATURE_LEN];
++    uint32_t signature_len;
++    uint8_t dgst[HSE_HASH_LEN];
++    uint32_t dgst_len;
++    uint8_t Rng[NUMBER_OF_RNG_BYTES];
++} hse_private_t;
+ 
+ #endif /* HSE_ABI_H */
+diff --git a/include/hse/hse_mu.h b/include/hse/hse_mu.h
+old mode 100644
+new mode 100755
+index 7619fe367b..1634d7fd7b
+--- a/include/hse/hse_mu.h
++++ b/include/hse/hse_mu.h
+@@ -7,14 +7,32 @@
+ 
+ #ifndef HSE_MU_H
+ #define HSE_MU_H
+-
++#include <stdbool.h>
++#include "compiler.h"
+ #define HSE_NUM_CHANNELS    16u /* number of available service channels */
++#define HSE_NUM_MU           4u /* number of available service channels */
++#define FIRST_MU_CHANNEL 1U
++#define HSE_RESERVED_MEM_ADDR CONFIG_CRYPTO_DEV_NXP_HSE_DMABLE_DRAM_BASE_ADDR
+ 
+-u16 hse_mu_check_status(void);
+-bool hse_mu_msg_pending(u8 channel);
++/*
++ * Error codes that commands return to cmd_process(). We use the standard 0
++ * and 1 for success and failure, but add one more case - failure with a
++ * request to call cmd_usage(). But the cmd_process() function handles
++ * CMD_RET_USAGE itself and after calling cmd_usage() it will return 1.
++ * This is just a convenience for commands to avoid them having to call
++ * cmd_usage() all over the place.
++ */
++typedef enum hse_command_ret {
++	HSE_CMD_RET_SUCCESS,	/* 0 = Success */
++	HSE_CMD_RET_FAILURE,	/* 1 = Failure */
++	HSE_CMD_RET_USAGE = -1,	/* Failure, please report 'usage' error */
++}hse_command_ret_t;
+ 
+-int hse_mu_msg_send(u8 channel, u32 msg);
+-int hse_mu_msg_recv(u8 channel, u32 *msg);
+-int hse_send_recv(u8 channel, u32 send_buf, u32 *recv_buf);
++uint16_t hse_mu_check_status(void);
++bool hse_mu_msg_pending(uint8_t channel);
++int hse_mu_msg_send(uint8_t channel, uint32_t msg);
++int hse_mu_msg_recv(uint8_t channel, uint32_t *msg);
++int hse_send_recv(uint8_t channel, uint32_t send_buf, uint32_t *recv_buf);
++int hse_srv_req_sync(uint8_t channel, const void *srv_desc);
+ 
+ #endif /* HSE_MU_H */
+diff --git a/lib/Makefile b/lib/Makefile
+old mode 100644
+new mode 100755
+index c86becd45b..4143428044
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -124,6 +124,10 @@ else
+ obj-y += vsprintf.o strto.o
+ endif
+ 
++ifdef CONFIG_TARGET_S32GEN1_HPER_GEN2
++obj-$(CONFIG_TARGET_S32GEN1_HPER_GEN2) += hper_gen2/
++endif
++
+ obj-y += date.o
+ 
+ #
+diff --git a/lib/hper_gen2/Makefile b/lib/hper_gen2/Makefile
+new file mode 100755
+index 0000000000..9cb870d489
+--- /dev/null
++++ b/lib/hper_gen2/Makefile
+@@ -0,0 +1,5 @@
++# (C) Copyright 2022 Continental
++#
++# All rights exclusively reserved for Continental unless otherwise expressly agreed.
++
++obj-$(CONFIG_TARGET_S32GEN1_HPER_GEN2) += secure_boot.o
+diff --git a/lib/hper_gen2/secure_boot.c b/lib/hper_gen2/secure_boot.c
+new file mode 100755
+index 0000000000..2eeeac62fd
+--- /dev/null
++++ b/lib/hper_gen2/secure_boot.c
+@@ -0,0 +1,318 @@
++/*============================================================================*/
++/* COPYRIGHT (C) Continental AG                                               */
++/* ALL RIGHTS RESERVED                                                        */
++/*                                                                            */
++/* The reproduction, transmission, or use of this document or its content is  */
++/* not permitted without express written authority. Offenders will be liable  */
++/* for damages.                                                               */
++/* All rights, including rights created by patent grant or registration of a  */
++/* utility model or design, are reserved.                                     */
++/*============================================================================*/
++
++
++#include <secure_boot.h>
++#include "hpe_hse_common.h"
++#include "hpe_hse_signature.h"
++#include "hpe_hse_hash.h"
++
++/**
++ * @brief   read data from emmc memory to RAM address
++ *
++ * @param[in] mmc           MMC memory handler
++ * @param[in] size          size of data in bytes to be copied from emmc to RAM
++ * @param[in] offset        offset of data storage in EMMC memory
++ * @param[in/out] buffer    RAM buffer
++ *
++ * @return  0 if all data block are correctly read -1 otherwise
++ */
++
++static inline int Read_Data_From_Emmc(struct mmc *mmc, unsigned long size,
++               unsigned long offset, const void *buffer)
++{
++    uint32_t blk_start, blk_cnt, n;
++    struct blk_desc *desc = mmc_get_blk_desc(mmc);
++
++    blk_start = ALIGN(offset, mmc->read_bl_len) / mmc->read_bl_len;
++    blk_cnt   = ALIGN(size, mmc->read_bl_len) / mmc->read_bl_len;
++
++    n = blk_dread(desc, blk_start, blk_cnt, (uint8_t *)buffer);
++
++    return (n == blk_cnt) ? 0 : -1;
++}
++
++/**
++ * @brief   verifies the header ID
++ *
++ * @param[in] header_ptr           the bccert header
++ *
++ * @return  true if the header ID equals to 0x42496D67 (BImg), false otherwise
++ *
++ * @ref Satisfies_SWR_D_IPL_SECURE_BOOT_004
++ */
++
++static bool Verify_Header_Id(const bccert_t* header_ptr)
++{
++    bool result = true;
++    uint64_t rng = 0x00;
++    hse_services_ret_t rng_ret = HSE_SERVICES_OK;
++    if (SECUREBOOT_HEADER_MAGIC_ID != header_ptr->certificate.header.id )
++    {
++        printf("Debug: BCCert header ID: expected '0x%08x', got '0x%08x'\n",
++                SECUREBOOT_HEADER_MAGIC_ID,
++                header_ptr->certificate.header.id);
++        printf("Error: Not a valid header!\n");
++        result = false;
++    }
++
++    return (result);
++}
++
++/**
++ * @brief   verify that binary size could match partition
++ *
++ * @param[in] header_ptr           the bccert header
++ * @param[in] size                  the binary partition size
++ *
++ * @return  true if the binary size is less then partition size
++ *
++ * @ref Satisfies_SWR_D_IPL_SECURE_BOOT_005
++ */
++static bool Verify_Binary_Size(const bccert_t* header_ptr, size_t size)
++{
++    bool result = true;
++
++    if (header_ptr->certificate.img_info.size > ( size - SECUREBOOT_HEADER_SIZE_IN_BYTE))
++    {
++        result = false;
++    }
++    return (result);
++}
++
++/**
++ * @brief   verify header signature
++ *
++ * @param[in] header_ptr           the bccert header
++ * @param[in] app_name              name of the binary to verify
++ *
++ * @return  true if the signature request is sent correctly to the true HSE.
++ *
++ * @ref Satisfies_SWR_D_IPL_SECURE_BOOT_001
++ */
++static bool Header_Verify_Signature (const bccert_t* header_ptr, const char* app_name)
++{
++    bool ret = true;
++    hse_services_ret_t sign_ret = HSE_SERVICES_OK;
++    key_ref_t key = {0x00u};
++    if (NULL == header_ptr)
++    {
++        printf("%s: ERROR: Invalid parameters are given to function.\n",
++               __func__);
++        ret = false;
++        goto exit;
++    }
++    key.catalog_id = (header_ptr->certificate.sig_info.key_id >> 16) & 0xff;
++    key.group_id   = (header_ptr->certificate.sig_info.key_id >> 8) & 0xff;
++    key.slot_id    = (header_ptr->certificate.sig_info.key_id) & 0xff;
++    sign_ret =  hpe_hse_rsa_pss_signature(key , header_ptr->certificate.sig_info.scheme_id,
++                                          header_ptr->certificate.sig_info.hashalg_id,
++                                          header_ptr , sizeof(certificate_t),
++                                          header_ptr->signature , header_ptr->certificate.sig_info.s_size ,
++                                          header_ptr->certificate.sig_info.salt_len);
++    if (HSE_SERVICES_OK == sign_ret)
++    {
++        printf("Verify Signature for binary %s success\n", app_name);;
++        ret = true;
++    }
++    else
++    {
++        printf("Verify Signature request for binary %s failed (0x%x) \n", app_name, sign_ret);
++        ret = false;
++    }
++exit:
++    return (ret);
++}
++
++/**
++ * @brief   hash calculation request
++ *
++ * @param[in] data_ptr              binary address in RAM.
++ * @param[in] header_ptr            the bccert header
++ * @param[in] app_name              name of the binary
++ * @param[in,out] hash              hash calculation result pointer
++ * @param[in,out] hash_size         hash calculation result size
++ *
++ * @return  TRUE if the hash calculation request is sent correctly to the true HSE.
++ *
++ * @ref Satisfies_SWR_D_IPL_SECURE_BOOT_002
++ */
++static bool Img_Hash_Calculate (uint8_t* data_ptr ,const bccert_t* header_ptr,
++                                uint8_t* hash, uint32_t* hash_size,
++                                const char* app_name)
++{
++    bool ret = true;
++    hse_services_ret_t hash_ret = HSE_SERVICES_OK;
++
++    if ((NULL == data_ptr) || (NULL == header_ptr) || (NULL == hash) || (NULL == hash_size))
++    {
++        printf("%s: ERROR: Invalid parameters are given to function.\n",
++               __func__);
++        ret = false;
++        goto exit;
++    }
++
++    hash_ret = hpe_hse_hash(data_ptr , header_ptr->certificate.img_info.size,
++                            header_ptr->certificate.img_info.hashalg_id,
++                            hash, *hash_size);
++    if (HSE_SERVICES_OK != hash_ret)
++    {
++        printf("calculate hash for binary %s is failed while starting (0x%x) \n", app_name, hash_ret);
++        ret = false;
++        goto exit;
++    }
++exit:
++    return (ret);
++}
++
++
++/**
++ * @brief   hash verify request
++ *
++ * @param[in] p_Boot_Cert           the bccert header
++ * @param[in] hash_ptr              pointer to calculated HASH container
++ * @param[in] hash_size_ptr         calculated HASH container size
++ * @param[in] app_name              name of the binary
++ *
++ * @return  TRUE if the calculated hash is equal to the hash in header
++ *
++ * @ref Satisfies_SWR_D_IPL_SECURE_BOOT_003
++ */
++
++static bool Img_Hash_Verify(const bccert_t* header_ptr, volatile uint8_t* hash_ptr ,
++                            volatile uint32_t* hash_size_ptr, const char* app_name)
++{
++    bool result = false;
++    uint32_t hash_diff = 0x00u;
++
++    if ((NULL == header_ptr) || (NULL == hash_ptr) || (NULL == hash_size_ptr))
++    {
++        printf("%s: ERROR: Invalid parameters are given to function.\n",
++               __func__);
++        result = false;
++        goto exit;
++    }
++
++    hash_diff = (uint32_t) memcmp((void*) hash_ptr,
++                                  (const void*) header_ptr->certificate.img_hash ,
++                                  (size_t) *hash_size_ptr);
++    if (0x00 == hash_diff)
++    {
++        printf("Verify hash for binary %s success\n", app_name);
++        result = true;
++    }
++    else
++    {
++        printf("Verify hash for binary %s failed\n", app_name);
++        result = false;
++    }
++exit:
++    return (result);
++}
++
++/**
++ * @brief   secure load image
++ *
++ * @param[in] _write_address       the RAM address of the binary
++ * @param[in] _read_address        Te NOR address of the binary
++ * @param[in] _size                size of the binary partition.
++ * @param[in,out] _header          isolated header
++ * @param[in] app_name             name of the binary
++ * @return secure_boot_return_code_t.
++ * @retval E_SB_OK if image verification successfully verified.
++ * @retval E_SB_HEADER_HANDLING_ERROR if invalid parameters are given.
++ * @retval E_SB_OK if secure boot operations success
++ * @retval E_SB_HEADER_HANDLING_ERROR secure boot failed due header size
++ * @retval E_SB_HEADER_INTEGRITY_ERROR secure boot failed due header format
++ * @retval E_SB_HEADER_SIGNATURE_ERROR secure boot failed due to invalid signature or sign operation fail
++ * @retval E_SB_IMAGE_HANDLING_ERROR secure boot failed due to hash operation fail
++ * @retval E_SB_IMAGE_HASH_ERROR secure boot failed due to hash invalid hash
++ * @retval E_SB_INVALID_PARAMS_ERROR secure boot failed due to invalid parameters
++ * @retval E_SB_BUFFER_ERROR secure boot failed due to buffer allocation issue
++ */
++
++SecureBootReturnCode_t secureLoadImage(struct mmc *mmc, void* write_address,
++                                       const void * read_address,
++                                       size_t size, char* app_name)
++{
++    SecureBootReturnCode_t result = E_SB_OK;
++    int rc = 0x00;
++    uint32_t hashSize = SECUREBOOT_HASH_SIZE_IN_BYTE;
++    uint8_t  hashResult [SECUREBOOT_HASH_SIZE_IN_BYTE] = {0x00};
++    bccert_t header = {0x00};
++    if ((NULL == mmc) || (NULL == write_address) || (NULL == read_address))
++    {
++        printf("%s: ERROR: Invalid parameters are given to function.\n",
++               __func__);
++        result = E_SB_INVALID_PARAMS;
++        goto exit;
++    }
++
++    if (size < SECUREBOOT_HEADER_SIZE_IN_BYTE)
++    {
++        result =  E_SB_IMAGE_HANDLING_ERROR;
++        goto exit;
++    }
++
++    rc = Read_Data_From_Emmc(mmc, sizeof(bccert_t), read_address, &header);
++    if(0x00 != rc)
++    {
++        result = E_SB_HEADER_HANDLING_ERROR;
++        goto exit;
++    }
++    rc = Verify_Header_Id(&header);
++    if(false == rc)
++    {
++        result =  E_SB_HEADER_HANDLING_ERROR;
++        goto exit;
++    }
++    rc = Verify_Binary_Size(&header, size);
++    if(false == rc)
++    {
++        result =  E_SB_HEADER_INTEGRITY_ERROR;
++        goto exit;
++    }
++    /* header signature verification */
++    rc = Header_Verify_Signature (&header, app_name);
++    if(false == rc)
++    {
++        result =  E_SB_HEADER_SIGNATURE_ERROR;
++        goto exit;
++    }
++
++    rc = Read_Data_From_Emmc(mmc, header.certificate.img_info.size,
++                             read_address + SECUREBOOT_HEADER_SIZE_IN_BYTE,
++                             write_address);
++    if(0x00 != rc)
++    {
++        result = E_SB_HEADER_HANDLING_ERROR;
++        goto exit;
++    }
++    /* binary hash calculation */
++    rc = Img_Hash_Calculate (write_address, &header,
++                             (uint8_t*) hashResult,
++                             (uint32_t*)  &hashSize, app_name);
++    if(false == rc)
++    {
++        result =  E_SB_IMAGE_HASH_ERROR;
++        goto exit;
++    }
++    /* binary hash verification */
++    rc = Img_Hash_Verify(&header,(volatile uint8_t*) hashResult ,
++                         (volatile uint32_t*) &hashSize, app_name);
++    if(false == rc)
++    {
++        result =  E_SB_IMAGE_HASH_ERROR;
++        goto exit;
++    }
++exit:
++    return (result);
++}
+-- 
+2.35.1
+

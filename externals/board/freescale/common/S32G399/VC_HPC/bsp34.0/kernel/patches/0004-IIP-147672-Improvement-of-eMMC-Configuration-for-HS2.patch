@@ -1,0 +1,171 @@
+From da4ceb1554cec3dcf429cc75e4616dbf4412c27a Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 7 Dec 2022 13:51:28 +0800
+Subject: [PATCH 1/1] IIP-147672: Improvement of eMMC Configuration for HS200
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/mmc/host/sdhci-esdhc-imx.c | 116 ++++++++++++++---------------
+ 1 file changed, 57 insertions(+), 59 deletions(-)
+ mode change 100644 => 100755 drivers/mmc/host/sdhci-esdhc-imx.c
+
+diff --git a/drivers/mmc/host/sdhci-esdhc-imx.c b/drivers/mmc/host/sdhci-esdhc-imx.c
+old mode 100644
+new mode 100755
+index 761e93451..8a8ba556e
+--- a/drivers/mmc/host/sdhci-esdhc-imx.c
++++ b/drivers/mmc/host/sdhci-esdhc-imx.c
+@@ -283,8 +283,7 @@ static struct esdhc_soc_data usdhc_imx8mm_data = {
+ };
+ 
+ static struct esdhc_soc_data usdhc_s32gen1_data = {
+-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_HS400_ES
+-			| ESDHC_FLAG_HS200 | ESDHC_FLAG_HS400
++	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_HS200
+ 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_MAN_TUNING
+ 			| ESDHC_FLAG_CQHCI,
+ };
+@@ -1041,84 +1040,83 @@ static int usdhc_execute_tuning(struct mmc_host *mmc, u32 opcode)
+ 	return sdhci_execute_tuning(mmc, opcode);
+ }
+ 
+-static void esdhc_poll_rsta(struct sdhci_host *host)
++static void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
+ {
+ 	u32 reg;
++	u8 sw_rst;
++	int ret;
++
++	/* FIXME: delay a bit for card to be ready for next tuning due to errors */
++
++#if defined(CONFIG_S32GEN1_EMULATOR)
++	udelay(1);
++#else
++	mdelay(1);
++#endif
+ 
+-	esdhc_set_bits(host, ESDHC_SYS_CTRL, SYS_CTRL_RSTA);
+-	if (readl_poll_timeout(host->ioaddr + ESDHC_SYS_CTRL, reg,
+-			       !(reg & SYS_CTRL_RSTA), 10, 100))
++	/* IC suggest to reset USDHC before every tuning command */
++	esdhc_clrset_le(host, 0xff, SDHCI_RESET_ALL, SDHCI_SOFTWARE_RESET);
++	ret = readb_poll_timeout(host->ioaddr + SDHCI_SOFTWARE_RESET, sw_rst,
++				!(sw_rst & SDHCI_RESET_ALL), 10, 100);
++	if (ret == -ETIMEDOUT)
+ 		dev_warn(mmc_dev(host->mmc),
+-			 "Warning: Reset did not complete within 100us\n");
++		"warning! RESET_ALL never complete before sending tuning command\n");
++
++	reg = readl(host->ioaddr + ESDHC_MIX_CTRL);
++	reg |= ESDHC_MIX_CTRL_EXE_TUNE | ESDHC_MIX_CTRL_SMPCLK_SEL |
++			ESDHC_MIX_CTRL_FBCLK_SEL;
++	writel(reg, host->ioaddr + ESDHC_MIX_CTRL);
++	writel(val << 8, host->ioaddr + ESDHC_TUNE_CTRL_STATUS);
++	dev_dbg(mmc_dev(host->mmc),
++		"tuning with delay 0x%x ESDHC_TUNE_CTRL_STATUS 0x%x\n",
++			val, readl(host->ioaddr + ESDHC_TUNE_CTRL_STATUS));
+ }
+ 
+-static int esdhc_send_tuning_block(struct sdhci_host *host,
+-				   u32 opcode, u8 delay_cells)
++static void esdhc_post_tuning(struct sdhci_host *host)
+ {
+-	esdhc_poll_rsta(host);
+-	writel(DLY_CELL_SET_PRE(delay_cells),
+-	       host->ioaddr + ESDHC_TUNE_CTRL_STATUS);
+-	return mmc_send_tuning(host->mmc, opcode, NULL);
++	u32 reg;
+ 
++	reg = readl(host->ioaddr + ESDHC_MIX_CTRL);
++	reg &= ~ESDHC_MIX_CTRL_EXE_TUNE;
++	reg |= ESDHC_MIX_CTRL_AUTO_TUNE_EN;
++	writel(reg, host->ioaddr + ESDHC_MIX_CTRL);
+ }
+ 
+ static int esdhc_executing_tuning(struct sdhci_host *host, u32 opcode)
+ {
+-	u32 reg, value_a, value_b;
+-	bool must_clr_frcsdclk = false;
+-
+-	esdhc_clear_bits(host, ESDHC_TUNING_CTRL, ESDHC_STD_TUNING_EN);
+-	esdhc_poll_rsta(host);
+-	esdhc_set_bits(host, ESDHC_MIX_CTRL,
+-		       (ESDHC_MIX_CTRL_EXE_TUNE | ESDHC_MIX_CTRL_SMPCLK_SEL));
+-
+-	if (!(readl(host->ioaddr + ESDHC_VENDOR_SPEC)
+-					& ESDHC_VENDOR_SPEC_FRC_SDCLK_ON)) {
+-		esdhc_set_bits(host, ESDHC_VENDOR_SPEC,
+-			       ESDHC_VENDOR_SPEC_FRC_SDCLK_ON);
+-		must_clr_frcsdclk = true;
+-	}
++	int min, max, avg, ret;
+ 
+-	/* Find the start of the passing window */
+-	value_a = ESDHC_TUNE_CTRL_MIN;
+-	while (value_a <= ESDHC_TUNE_CTRL_MAX) {
+-		if (!esdhc_send_tuning_block(host, opcode, value_a))
++	/* find the mininum delay first which can pass tuning */
++	min = ESDHC_TUNE_CTRL_MIN;
++	while (min < ESDHC_TUNE_CTRL_MAX) {
++		esdhc_prepare_tuning(host, min);
++		if (!mmc_send_tuning(host->mmc, opcode, NULL))
+ 			break;
+-		value_a += ESDHC_TUNE_CTRL_STEP;
++
++		min += ESDHC_TUNE_CTRL_STEP;
+ 	}
+-	if (value_a > ESDHC_TUNE_CTRL_MAX)
+-		return -EINVAL;
+ 
+-	/* Find the end of the passing window */
+-	value_b = value_a;
+-	while (value_b + ESDHC_TUNE_CTRL_STEP <= ESDHC_TUNE_CTRL_MAX) {
+-		if (esdhc_send_tuning_block(host, opcode,
+-					    value_b + ESDHC_TUNE_CTRL_STEP))
++	/* find the maxinum delay which can not pass tuning */
++	max = min + ESDHC_TUNE_CTRL_STEP;
++	while (max < ESDHC_TUNE_CTRL_MAX) {
++		esdhc_prepare_tuning(host, max);
++		if (mmc_send_tuning(host->mmc, opcode, NULL)) {
++			max -= ESDHC_TUNE_CTRL_STEP;
+ 			break;
+-		value_b += ESDHC_TUNE_CTRL_STEP;
++		}
++		max += ESDHC_TUNE_CTRL_STEP;
+ 	}
+ 
+-	esdhc_clear_bits(host, ESDHC_MIX_CTRL, ESDHC_MIX_CTRL_EXE_TUNE);
+-	if (must_clr_frcsdclk)
+-		esdhc_clear_bits(host, ESDHC_VENDOR_SPEC,
+-				 ESDHC_VENDOR_SPEC_FRC_SDCLK_ON);
+-	esdhc_poll_rsta(host);
+-	esdhc_set_bits(host, ESDHC_MIX_CTRL, ESDHC_MIX_CTRL_SMPCLK_SEL);
+-
+-	/* According to the "Manual Tuning Procedure" chapter in the RM */
+-	reg = (((((value_a + value_b) / 2) & 0xffffff00) - 0x300) | 0x33);
+-	writel(reg, host->ioaddr + ESDHC_TUNE_CTRL_STATUS);
+-
+-	if (readl_poll_timeout(host->ioaddr + ESDHC_TUNE_CTRL_STATUS, reg,
+-			       TUNE_CTRL_TAP_SEL(reg)
+-						!= TUNE_CTRL_DLY_CELL_SET(reg),
+-			       10, 100))
+-		dev_warn(mmc_dev(host->mmc),
+-			 "Setting delay cells did not complete within 100us\n");
++	/* use average delay to get the best timing */
++	avg = (min + max) / 2;
++	esdhc_prepare_tuning(host, avg);
++	ret = mmc_send_tuning(host->mmc, opcode, NULL);
++	esdhc_post_tuning(host);
+ 
+-	esdhc_set_bits(host, ESDHC_MIX_CTRL, ESDHC_MIX_CTRL_AUTO_TUNE_EN);
++	dev_dbg(mmc_dev(host->mmc), "tuning %s at 0x%x ret %d\n",
++		ret ? "failed" : "passed", avg, ret);
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static void esdhc_hs400_enhanced_strobe(struct mmc_host *mmc, struct mmc_ios *ios)
+-- 
+2.35.1
+

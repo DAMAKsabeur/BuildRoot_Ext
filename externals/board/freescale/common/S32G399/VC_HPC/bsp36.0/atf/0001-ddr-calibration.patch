@@ -1,0 +1,986 @@
+From 568e32c1d9cdb6b185d74df8efb168ada8a86613 Mon Sep 17 00:00:00 2001
+From: "Damak Sabeur (uic56995)" <sabeur damak>
+Date: Mon, 16 Oct 2023 14:15:13 +0200
+Subject: [PATCH] ddr calibration
+
+---
+ drivers/nxp/s32/ddr/ddr_init.c                |  16 +-
+ drivers/nxp/s32/ddr/ddr_lp.c                  |  35 +--
+ drivers/nxp/s32/ddr/ddr_lp_csr.c              |   2 +-
+ drivers/nxp/s32/ddr/ddr_utils.c               | 209 ++----------------
+ drivers/nxp/s32/ddr/ddrss_cfg.c               |   2 +-
+ drivers/nxp/s32/ddr/imem_cfg.c                |   2 +-
+ drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c          |  39 +---
+ drivers/nxp/s32/ddr/s32g3/dmem_cfg.c          |  14 +-
+ drivers/nxp/s32/ddr/s32g3/dq_swap_cfg.c       |  60 ++---
+ drivers/nxp/s32/ddr/s32g3/phy_cfg.c           |   4 +-
+ drivers/nxp/s32/ddr/s32g3/pie_cfg.c           |   2 +-
+ include/drivers/nxp/s32/ddr/ddr_init.h        |   2 +-
+ include/drivers/nxp/s32/ddr/ddr_lp.h          |   2 +-
+ include/drivers/nxp/s32/ddr/ddr_utils.h       | 107 +--------
+ .../dt-bindings/clock/s32gen1-clock-freq.h    |   2 +-
+ 15 files changed, 88 insertions(+), 410 deletions(-)
+
+diff --git a/drivers/nxp/s32/ddr/ddr_init.c b/drivers/nxp/s32/ddr/ddr_init.c
+index b70b11e..146733a 100644
+--- a/drivers/nxp/s32/ddr/ddr_init.c
++++ b/drivers/nxp/s32/ddr/ddr_init.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -82,6 +82,7 @@ static uint32_t ddrc_init_cfg(const struct ddrss_config *config)
+ static uint32_t execute_training(const struct ddrss_config *config)
+ {
+ 	uint32_t ret = NO_ERR;
++
+ 	/* Apply DQ swapping settings */
+ 	ret = load_dq_cfg(config->dq_swap_size, config->dq_swap);
+ 	if (ret != NO_ERR)
+@@ -92,6 +93,9 @@ static uint32_t execute_training(const struct ddrss_config *config)
+ 	if (ret != NO_ERR)
+ 		return ret;
+ 
++	/* Configure PLL optimal settings */
++	set_optimal_pll();
++
+ 	/* Load 1D imem image */
+ 	mmio_write_32(MICROCONT_MUX_SEL, UNLOCK_CSR_ACCESS);
+ 	ret = load_phy_image(IMEM_START_ADDR, config->imem_1d_size,
+@@ -100,16 +104,12 @@ static uint32_t execute_training(const struct ddrss_config *config)
+ 		return ret;
+ 	mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+ 
+-	/* Load 1D imem image */
++	/* Load 1D dmem image */
+ 	mmio_write_32(MICROCONT_MUX_SEL, UNLOCK_CSR_ACCESS);
+ 	ret = load_phy_image(DMEM_START_ADDR, config->dmem_1d_size,
+ 			     config->dmem_1d);
+ 	if (ret != NO_ERR)
+ 		return ret;
+-	mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+-
+-	/* Configure PLL optimal settings */
+-	set_optimal_pll();
+ 
+ 	mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+ 	mmio_write_32(APBONLY_MICRORESET, APBONLY_RESET_STALL_MASK);
+@@ -149,10 +149,6 @@ static uint32_t execute_training(const struct ddrss_config *config)
+ 				     config->dmem_2d);
+ 		if (ret != NO_ERR)
+ 			return ret;
+-		mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+-
+-		/* Configure PLL optimal settings */
+-		set_optimal_pll();
+ 
+ 		mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+ 		mmio_write_32(APBONLY_MICRORESET, APBONLY_RESET_STALL_MASK);
+diff --git a/drivers/nxp/s32/ddr/ddr_lp.c b/drivers/nxp/s32/ddr/ddr_lp.c
+index 608d8d4..ad1a522 100644
+--- a/drivers/nxp/s32/ddr/ddr_lp.c
++++ b/drivers/nxp/s32/ddr/ddr_lp.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -160,24 +160,6 @@ void ddrss_to_io_retention_mode(void)
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC,
+ 		      dfimisc | DFI_FREQUENCY(DFIMISC_LP3_PHY_STATE));
+ 
+-#if !defined(PLAT_s32g3)
+-	/* Disable PHY Master. */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR,
+-		      tmp32 & ~DFIPHYMSTR_ENABLE);
+-
+-	/* Wait for PHY Master to be disabled. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	} while ((tmp32 & DFIPHYMSTR_ENABLE) != DFIPHYMSTR_DISABLED);
+-
+-	/* Wait for PHY Master request to be finished. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_STAT);
+-	} while (((tmp32 & SELFREF_TYPE_MASK) >>
+-		  SELFREF_TYPE_POS) == PHY_MASTER_REQUEST);
+-#endif
+-
+ 	/* Set DFIMISC.dfi_init_start to 1. */
+ 	dfimisc = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC);
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC,
+@@ -198,18 +180,6 @@ void ddrss_to_io_retention_mode(void)
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC,
+ 		      dfimisc & (~DFI_INIT_START_MASK));
+ 
+-#if !defined(PLAT_s32g3)
+-	/* Enable PHY Master. */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR,
+-		      tmp32 | DFIPHYMSTR_ENABLE);
+-
+-	/* Wait for PHY Master to be enabled. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	} while ((tmp32 & DFIPHYMSTR_ENABLE) != DFIPHYMSTR_ENABLE);
+-#endif
+-
+ 	/* Wait DFISTAT.dfi_init_complete to be 1. */
+ 	do {
+ 		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFISTAT);
+@@ -266,10 +236,9 @@ uint32_t ddrss_to_normal_mode(uintptr_t csr_array)
+ 	if (ret != NO_ERR)
+ 		return ret;
+ 
+-	mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+-
+ 	/* Optimal PLL */
+ 	set_optimal_pll();
++	mmio_write_32(MICROCONT_MUX_SEL, LOCK_CSR_ACCESS);
+ 
+ 	/* Reload saved CSRs */
+ 	mmio_write_32(MICROCONT_MUX_SEL, UNLOCK_CSR_ACCESS);
+diff --git a/drivers/nxp/s32/ddr/ddr_lp_csr.c b/drivers/nxp/s32/ddr/ddr_lp_csr.c
+index 4d7e023..73ad194 100644
+--- a/drivers/nxp/s32/ddr/ddr_lp_csr.c
++++ b/drivers/nxp/s32/ddr/ddr_lp_csr.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/drivers/nxp/s32/ddr/ddr_utils.c b/drivers/nxp/s32/ddr/ddr_utils.c
+index 1b9a832..6ce08e4 100644
+--- a/drivers/nxp/s32/ddr/ddr_utils.c
++++ b/drivers/nxp/s32/ddr/ddr_utils.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -48,16 +48,11 @@ static uint8_t get_avg_vref(const uint32_t vref_addr[], size_t size);
+ static uint32_t adjust_ddrc_config(void);
+ static bool is_lpddr4(void);
+ 
+-
+-#if (ERRATA_S32_050543 == 1)
+-uint8_t polling_needed = 2;
+-#endif
+-
+ static struct space_timing_params tr_res = {
+-		.cdd = {.rr = 0, .rw = 0, .wr = 0, .ww = 0},
+-		.vref_ca = 0,
+-		.vref_dq = 0,
+-		.tphy_wrdata_delay = 0
++	.cdd = {.rr = 0, .rw = 0, .wr = 0, .ww = 0},
++	.vref_ca = 0,
++	.vref_dq = 0,
++	.tphy_wrdata_delay = 0
+ };
+ 
+ /* Modify bitfield value with delta, given bitfield position and mask */
+@@ -266,24 +261,6 @@ uint32_t post_train_setup(uint8_t options)
+ 		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_SWSTAT);
+ 	} while ((tmp32 & SWSTAT_SWDONE_ACK_MASK) != SWSTAT_SW_NOT_DONE);
+ 
+-#if !defined(PLAT_s32g3)
+-	/* Disable PHY Master. */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR,
+-		      tmp32 & ~DFIPHYMSTR_ENABLE);
+-
+-	/* Wait for PHY Master to be disabled. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	} while ((tmp32 & DFIPHYMSTR_ENABLE) != DFIPHYMSTR_DISABLED);
+-
+-	/* Wait for PHY Master request to be finished. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_STAT);
+-	} while (((tmp32 & SELFREF_TYPE_MASK) >>
+-		  SELFREF_TYPE_POS) == PHY_MASTER_REQUEST);
+-#endif
+-
+ 	/* Set DFIMISC.dfi_init_start to 1*/
+ 	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC);
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC,
+@@ -314,18 +291,6 @@ uint32_t post_train_setup(uint8_t options)
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DFIMISC,
+ 		      (~DFIMISC_DFI_INIT_START_MASK) & tmp32);
+ 
+-#if !defined(PLAT_s32g3)
+-	/* Enable PHY Master. */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR,
+-		      tmp32 | DFIPHYMSTR_ENABLE);
+-
+-	/* Wait for PHY Master to be enabled. */
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DFIPHYMSTR);
+-	} while ((tmp32 & DFIPHYMSTR_ENABLE) != DFIPHYMSTR_ENABLE);
+-#endif
+-
+ 	if ((options & ADJUST_DDRC_MASK) != ADJUST_DDRC_DISABLED) {
+ 		/* Overwrite DDRC register based on post training_results */
+ 		ret = adjust_ddrc_config();
+@@ -395,12 +360,6 @@ uint32_t post_train_setup(uint8_t options)
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_PWRCTL,
+ 		      PWRCTL_EN_DFI_DRAM_CLOCK_DIS_MASK | tmp32);
+ 
+-#if (ERRATA_S32_050543 == 1)
+-	ret = enable_derating_temp_errata();
+-	if (ret != NO_ERR)
+-		return ret;
+-#endif
+-
+ 	/*
+ 	 * Each platform has a different number of AXI ports so this
+ 	 * method should be implemented in hardware specific source
+@@ -464,7 +423,6 @@ static uint32_t get_mail(uint32_t *mail)
+ 		return TIMEOUT_ERR;
+ 
+ 	*mail = mmio_read_32(DDR_PHYA_APBONLY_UCTWRITEONLYSHADOW);
+-
+ 	/* ACK */
+ 	return ack_mail();
+ }
+@@ -565,8 +523,8 @@ static uint32_t init_memory_ecc_scrubber(void)
+ 	return NO_ERR;
+ }
+ 
+-/* Read lpddr4 mode register with given index */
+-uint32_t read_lpddr4_mr(uint8_t mr_index)
++/* Read lpddr4 mode register with given rank and index */
++uint32_t read_lpddr4_mr(uint8_t mr_rank, uint8_t mr_index)
+ {
+ 	uint32_t tmp32;
+ 	uint8_t succesive_reads = 0;
+@@ -588,12 +546,12 @@ uint32_t read_lpddr4_mr(uint8_t mr_index)
+ 			succesive_reads = 0;
+ 	} while (succesive_reads != REQUIRED_MRSTAT_READS);
+ 
+-	/* Set MR_TYPE = 0x1 (Read) and MR_RANK = 0x1 (Rank 0) */
++	/* Set MR_TYPE = 0x1 (Read) and MR_RANK = desired rank */
+ 	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_MRCTRL0);
+ 	tmp32 |= MRCTRL0_MR_TYPE_READ;
+ 	tmp32 = (tmp32 & ~(MRCTRL0_RANK_ACCESS_FIELD <<
+ 			   MRCTRL0_RANK_ACCESS_POS)) |
+-		(MRCTRL0_RANK_0 << MRCTRL0_RANK_ACCESS_POS);
++		(mr_rank << MRCTRL0_RANK_ACCESS_POS);
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_MRCTRL0, tmp32);
+ 
+ 	/* Configure MR address: MRCTRL1[8:15] */
+@@ -624,7 +582,7 @@ uint32_t read_lpddr4_mr(uint8_t mr_index)
+ }
+ 
+ /* Write data in lpddr4 mode register with given index */
+-uint32_t write_lpddr4_mr(uint8_t mr_index, uint8_t mr_data)
++uint32_t write_lpddr4_mr(uint8_t mr_rank, uint8_t mr_index, uint8_t mr_data)
+ {
+ 	uint32_t tmp32;
+ 	uint8_t succesive_reads = 0;
+@@ -646,12 +604,12 @@ uint32_t write_lpddr4_mr(uint8_t mr_index, uint8_t mr_data)
+ 			succesive_reads = 0;
+ 	} while (succesive_reads != REQUIRED_MRSTAT_READS);
+ 
+-	/* Set MR_TYPE = 0x0 (Write) and MR_RANK = 0x1 (Rank 0) */
++	/* Set MR_TYPE = 0x0 (Write) and MR_RANK = desired rank */
+ 	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_MRCTRL0);
+ 	tmp32 &= ~(MRCTRL0_MR_TYPE_READ);
+ 	tmp32 = (tmp32 & ~(MRCTRL0_RANK_ACCESS_FIELD <<
+ 			   MRCTRL0_RANK_ACCESS_POS)) |
+-		(MRCTRL0_RANK_0 << MRCTRL0_RANK_ACCESS_POS);
++		(mr_rank << MRCTRL0_RANK_ACCESS_POS);
+ 	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_MRCTRL0, tmp32);
+ 
+ 	/* Configure MR address: MRCTRL1[8:15] and MR data: MRCTRL1[0:7]*/
+@@ -836,10 +794,10 @@ void compute_tphy_wrdata_delay(void)
+ 				 (DDRPHY_PIPE_DFI_MISC * 2U) + 3U);
+ 
+ 	burst_length = (uint16_t)(mstr >> MSTR_BURST_RDWR_POS) &
+-				  MSTR_BURST_RDWR_MASK;
++		       MSTR_BURST_RDWR_MASK;
+ 	dfitmg0 = mmio_read_16(DDRC_BASE_ADDR + OFFSET_DDRC_DFITMG0);
+ 	wrdata_use_dfi_phy_clk = (uint16_t)(dfitmg0 >> DFITMG0_PHY_CLK_POS) &
+-					    DFITMG0_PHY_CLK_MASK;
++				 DFITMG0_PHY_CLK_MASK;
+ 
+ 	/* Program */
+ 	tr_res.tphy_wrdata_delay = tctrl_delay + 6U + burst_length +
+@@ -901,11 +859,11 @@ static uint32_t adjust_ddrc_config(void)
+ 		rd_gap = (uint8_t)((tmp32 >> RANKCTL_RD_GAP_POS) &
+ 				   RANKCTL_RD_GAP_MASK);
+ 		rd_gap_new = (uint8_t)((rd_gap_ct + tr_res.cdd.rr +
+-				       (tr_res.cdd.rr % 2U)) / 2U);
++					(tr_res.cdd.rr % 2U)) / 2U);
+ 
+ 		/* ensure min and max of rd_gap field */
+ 		rd_gap_new = (rd_gap_new < min) ? min : ((rd_gap_new > max) ?
+-				max : rd_gap_new);
++							 max : rd_gap_new);
+ 		if (rd_gap_new > rd_gap) {
+ 			delta = (uint8_t)(rd_gap_new - rd_gap);
+ 			if (!update_bf(&tmp32, RANKCTL_RD_GAP_POS,
+@@ -917,11 +875,11 @@ static uint32_t adjust_ddrc_config(void)
+ 		wr_gap = (uint8_t)((tmp32 >> RANKCTL_WR_GAP_POS) &
+ 				   RANKCTL_WR_GAP_MASK);
+ 		wr_gap_new = (uint8_t)((wr_gap_ct + tr_res.cdd.ww +
+-				       (tr_res.cdd.ww % 2U)) / 2U);
++					(tr_res.cdd.ww % 2U)) / 2U);
+ 
+ 		/* ensure min and max of wr_gap field */
+ 		wr_gap_new = (wr_gap_new < min) ? min : ((wr_gap_new > max) ?
+-				max : wr_gap_new);
++							 max : wr_gap_new);
+ 		if (wr_gap_new > wr_gap) {
+ 			delta = (uint8_t)(wr_gap_new - wr_gap);
+ 			if (!update_bf(&tmp32, RANKCTL_WR_GAP_POS,
+@@ -1002,134 +960,3 @@ static uint8_t get_avg_vref(const uint32_t vref_addr[], size_t size)
+ 
+ 	return (uint8_t)(sum / size);
+ }
+-
+-#if (ERRATA_S32_050543 == 1)
+-/* Read Temperature Update Flag from lpddr4 MR4 register. */
+-uint8_t read_tuf(void)
+-{
+-	uint32_t mr4_val;
+-	uint8_t mr4_die_1, mr4_die_2;
+-
+-	mr4_val = read_lpddr4_mr(MR4_IDX);
+-	mr4_die_1 = (uint8_t)(mr4_val & MR4_MASK);
+-	mr4_die_2 = (uint8_t)((mr4_val >> MR4_SHIFT) & MR4_MASK);
+-
+-	return (mr4_die_1 > mr4_die_2) ? mr4_die_1 : mr4_die_2;
+-}
+-
+-/*
+- * Enable ERR050543 errata workaround.
+- * If the system is hot or cold prior to enabling derating, Temperature Update
+- * Flag might not be set in MR4 register, causing incorrect refresh period and
+- * derated timing parameters (tRCD, tRAS, rRP, tRRD being used.
+- * Software workaround requires reading MR register and adjusting timing
+- * parameters, if necessary.
+- */
+-uint32_t enable_derating_temp_errata(void)
+-{
+-	uint32_t tmp32, bf_val;
+-
+-	if (read_tuf() < TUF_THRESHOLD) {
+-		/* Enable timing parameter derating: DERATEEN.DERATE_EN = 1 */
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DERATEEN);
+-		mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DERATEEN,
+-			      tmp32 | DERATEEN_ENABLE);
+-
+-		polling_needed = 0;
+-		return NO_ERR;
+-	}
+-
+-	/* Disable timing parameter derating: DERATEEN.DERATE_EN = 0 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DERATEEN);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DERATEEN,
+-		      tmp32 & ~DERATEEN_MASK_DIS);
+-
+-	/*
+-	 * Update average time interval between refreshes per rank:
+-	 * RFSHTMG.T_RFC_NOM_X1_X32 = RFSHTMG.T_RFC_NOM_X1_X32 / 4
+-	 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_RFSHTMG);
+-	bf_val = (tmp32 >> RFSHTMG_VAL_SHIFT) & RFSHTMG_VAL;
+-	bf_val = bf_val >> RFSHTMG_UPDATE_SHIFT;
+-	tmp32 = (tmp32 & ~RFSHTMG_MASK) | (bf_val << RFSHTMG_VAL_SHIFT);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_RFSHTMG, tmp32);
+-
+-	/*
+-	 * Toggle RFSHCTL3.REFRESH_UPDATE_LEVEL to indicate that
+-	 * refresh registers have been updated
+-	 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_RFSHCTL3);
+-	bf_val = (tmp32 >> RFSHCTL3_UPDATE_SHIFT) & RFSHCTL3_AUTO_REFRESH_VAL;
+-	bf_val = bf_val ^ RFSHCTL3_UPDATE_LEVEL_TOGGLE;
+-	tmp32 = (tmp32 & ~RFSHCTL3_MASK) | (bf_val << RFSHCTL3_UPDATE_SHIFT);
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_RFSHCTL3, tmp32);
+-
+-	/* Set SWCTL.sw_done to 0 */
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_SWCTL, SWCTL_SWDONE_ENABLE);
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_SWSTAT);
+-	} while ((tmp32 & SWSTAT_SWDONE_ACK_MASK) != SWSTAT_SW_NOT_DONE);
+-
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG4);
+-	/*
+-	 * Set minimum time from activate to read/write command to same
+-	 * bank: DRAMTMG4.T_RCD += 2
+-	 */
+-	if (!update_bf(&tmp32, DRAMTMG4_TRCD_POS, DRAMTMG4_TRCD_MASK,
+-		       DRAMTMG4_TRCD_DELTA_TIME))
+-		return BITFIELD_EXCEEDED;
+-
+-	/*
+-	 * Set minimum time between activates from bank "a" to bank "b"
+-	 * DRAMTMG4.T_RRD += 2
+-	 */
+-	if (!update_bf(&tmp32, DRAMTMG4_TRRD_POS, DRAMTMG4_TRRD_MASK,
+-		       DRAMTMG4_TRRD_DELTA_TIME))
+-		return BITFIELD_EXCEEDED;
+-
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG4, tmp32);
+-
+-	/*
+-	 * Set minimum time between activate and precharge to same bank
+-	 * DRAMTMG0.T_RAS_MIN += 2
+-	 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG0);
+-	if (!update_bf(&tmp32, DRAMTMG0_TRAS_POS,
+-		       DRAMTMG0_TRAS_MASK, DRAMTMG0_TRAS_DELTA_TIME))
+-		return BITFIELD_EXCEEDED;
+-
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG0, tmp32);
+-
+-	/*
+-	 * Set minimum time from single-bank precharge to activate of
+-	 * same bank: DRAMTMG4.T_RP += 2
+-	 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG4);
+-	if (!update_bf(&tmp32, DRAMTMG4_TRP_POS,
+-		       DRAMTMG4_TRP_MASK, DRAMTMG4_TRP_DELTA_TIME))
+-		return BITFIELD_EXCEEDED;
+-
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG4, tmp32);
+-
+-	/*
+-	 * Set minimum time between activates to same bank:
+-	 * DRAMTMG1.T_RC += 3
+-	 */
+-	tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG1);
+-	if (!update_bf(&tmp32, DRAMTMG1_TRC_POS,
+-		       DRAMTMG1_TRC_MASK, DRAMTMG1_TRC_DELTA_TIME))
+-		return BITFIELD_EXCEEDED;
+-
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_DRAMTMG1, tmp32);
+-
+-	/* Set SWCTL.sw_done to 1 */
+-	mmio_write_32(DDRC_BASE_ADDR + OFFSET_DDRC_SWCTL, SWCTL_SWDONE_DONE);
+-	do {
+-		tmp32 = mmio_read_32(DDRC_BASE_ADDR + OFFSET_DDRC_SWSTAT);
+-	} while ((tmp32 & SWSTAT_SWDONE_ACK_MASK) == SWSTAT_SW_NOT_DONE);
+-
+-	polling_needed = 1;
+-
+-	return NO_ERR;
+-}
+-#endif
+diff --git a/drivers/nxp/s32/ddr/ddrss_cfg.c b/drivers/nxp/s32/ddr/ddrss_cfg.c
+index 38f36a3..98224f7 100644
+--- a/drivers/nxp/s32/ddr/ddrss_cfg.c
++++ b/drivers/nxp/s32/ddr/ddrss_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/drivers/nxp/s32/ddr/imem_cfg.c b/drivers/nxp/s32/ddr/imem_cfg.c
+index b7cbdc9..8300113 100644
+--- a/drivers/nxp/s32/ddr/imem_cfg.c
++++ b/drivers/nxp/s32/ddr/imem_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c b/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
+index e8a5118..6ae2528 100644
+--- a/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/ddrc_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -31,7 +31,7 @@
+ #include "ddr_init.h"
+ 
+ struct regconf ddrc_cfg[] = {
+-	{0x403c0000, 0x83080020U},
++	{0x403c0000, 0x81080020U},
+ 	{0x403c0010, 0x00000030U},
+ 	{0x403c0014, 0x00000000U},
+ 	{0x403c001c, 0x00000000U},
+@@ -46,13 +46,8 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0060, 0x00000000U},
+ 	{0x403c0064, 0x006100e0U},
+ 	{0x403c0068, 0x008c0000U},
+-#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0070, 0x033f7f54U},
+ 	{0x403c0074, 0x00000780U},
+-#else
+-	{0x403c0070, 0x033f7f40U},
+-	{0x403c0074, 0x000007b0U},
+-#endif
+ 	{0x403c007c, 0x00000700U},
+ 	{0x403c00b8, 0x00000000U},
+ 	{0x403c00bc, 0x00000000U},
+@@ -99,27 +94,13 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c01b8, 0x00000000U},
+ 	{0x403c01c0, 0x00000001U},
+ 	{0x403c01c4, 0x80000001U},
+-#if (S32GEN1_DRAM_INLINE_ECC == 1)
+-	{0x403c0200, 0x00000014U},
++	{0x403c0200, 0x0000001fU},
+ 	{0x403c0204, 0x00050505U},
+-#else
+-	{0x403c0200, 0x00000017U},
+-	{0x403c0204, 0x00080808U},
+-#endif
+ 	{0x403c0208, 0x00000000U},
+-#if (S32GEN1_DRAM_INLINE_ECC == 1)
+-	{0x403c020c, 0x14141400U},
+-#else
+-	{0x403c020c, 0x00000000U},
+-#endif
++	{0x403c020c, 0x13131300U},
+ 	{0x403c0210, 0x00001f1fU},
+-#if (S32GEN1_DRAM_INLINE_ECC == 1)
+ 	{0x403c0214, 0x04040404U},
+ 	{0x403c0218, 0x04040404U},
+-#else
+-	{0x403c0214, 0x07070707U},
+-	{0x403c0218, 0x07070707U},
+-#endif
+ 	{0x403c021c, 0x00000f0fU},
+ 	{0x403c0220, 0x00003f3fU},
+ 	{0x403c0224, 0x00000000U},
+@@ -127,11 +108,11 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c022c, 0x00000000U},
+ 	{0x403c0240, 0x04000400U},
+ 	{0x403c0244, 0x00000000U},
+-	{0x403c0250, 0x00001f01U},
++	{0x403c0250, 0x29001f05U},
+ 	{0x403c0254, 0x00000000U},
+ 	{0x403c025c, 0x10002200U},
+-	{0x403c0264, 0x90000096U},
+-	{0x403c026c, 0x1000012cU},
++	{0x403c0264, 0x1f002100U},
++	{0x403c026c, 0x1f002100U},
+ 	{0x403c0300, 0x00000000U},
+ 	{0x403c0304, 0x00000000U},
+ 	{0x403c030c, 0x00000000U},
+@@ -171,11 +152,7 @@ struct regconf ddrc_cfg[] = {
+ 	{0x403c0f24, 0x0000ff10U},
+ 	{0x403c0f2c, 0x00000000U},
+ 	{0x403c0f38, 0x00000000U},
+-#if (S32GEN1_DRAM_INLINE_ECC == 1)
+-	{0x403c0f40, 0x37ffffffU},
+-#else
+-	{0x403c0f40, 0x00000000U},
+-#endif
++	{0x403c0f40, 0x1bffffffU},
+ };
+ 
+ size_t ddrc_cfg_size = ARRAY_SIZE(ddrc_cfg);
+diff --git a/drivers/nxp/s32/ddr/s32g3/dmem_cfg.c b/drivers/nxp/s32/ddr/s32g3/dmem_cfg.c
+index b9c4ecc..6dfa1f6 100644
+--- a/drivers/nxp/s32/ddr/s32g3/dmem_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/dmem_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -37,7 +37,7 @@ uint16_t dmem_1d_cfg[] = {
+ 	0x0c80,
+ 	0x0002,
+ 	0x0000,
+-	0x0018,
++	0x0014,
+ 	0x0000,
+ 	0x131f,
+ 	0x00ff,
+@@ -49,7 +49,7 @@ uint16_t dmem_1d_cfg[] = {
+ 	0x0100,
+ 	0x0000,
+ 	0x0000,
+-	0x0310,
++	0x0110,
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+@@ -75,7 +75,7 @@ uint16_t dmem_1d_cfg[] = {
+ 	0x0000,
+ 	0x0000,
+ 	0x1000,
+-	0x0003,
++	0x0001,
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+@@ -872,7 +872,7 @@ uint16_t dmem_2d_cfg[] = {
+ 	0x0c80,
+ 	0x0002,
+ 	0x0000,
+-	0x0018,
++	0x0014,
+ 	0x0000,
+ 	0x0061,
+ 	0x00ff,
+@@ -884,7 +884,7 @@ uint16_t dmem_2d_cfg[] = {
+ 	0x0100,
+ 	0x2080,
+ 	0x0000,
+-	0x0310,
++	0x0110,
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+@@ -910,7 +910,7 @@ uint16_t dmem_2d_cfg[] = {
+ 	0x0000,
+ 	0x0000,
+ 	0x1000,
+-	0x0003,
++	0x0001,
+ 	0x0000,
+ 	0x0000,
+ 	0x0000,
+diff --git a/drivers/nxp/s32/ddr/s32g3/dq_swap_cfg.c b/drivers/nxp/s32/ddr/s32g3/dq_swap_cfg.c
+index 90ea667..b1bb004 100644
+--- a/drivers/nxp/s32/ddr/s32g3/dq_swap_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/dq_swap_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -31,38 +31,38 @@
+ #include "ddr_init.h"
+ 
+ struct dqconf dq_swap_cfg[] = {
+-	{0x40394830, 0x00},
+-	{0x40394834, 0x01},
+-	{0x40394838, 0x02},
+-	{0x4039483c, 0x03},
+-	{0x40394840, 0x04},
+-	{0x40394844, 0x05},
+-	{0x40394848, 0x06},
+-	{0x4039484c, 0x07},
+-	{0x40396830, 0x00},
++	{0x40394830, 0x05},
++	{0x40394834, 0x03},
++	{0x40394838, 0x01},
++	{0x4039483c, 0x04},
++	{0x40394840, 0x00},
++	{0x40394844, 0x02},
++	{0x40394848, 0x07},
++	{0x4039484c, 0x06},
++	{0x40396830, 0x06},
+ 	{0x40396834, 0x01},
+ 	{0x40396838, 0x02},
+ 	{0x4039683c, 0x03},
+-	{0x40396840, 0x04},
+-	{0x40396844, 0x05},
+-	{0x40396848, 0x06},
+-	{0x4039684c, 0x07},
+-	{0x40398830, 0x00},
+-	{0x40398834, 0x01},
+-	{0x40398838, 0x02},
+-	{0x4039883c, 0x03},
+-	{0x40398840, 0x04},
+-	{0x40398844, 0x05},
+-	{0x40398848, 0x06},
+-	{0x4039884c, 0x07},
+-	{0x4039a830, 0x00},
+-	{0x4039a834, 0x01},
+-	{0x4039a838, 0x02},
+-	{0x4039a83c, 0x03},
+-	{0x4039a840, 0x04},
+-	{0x4039a844, 0x05},
+-	{0x4039a848, 0x06},
+-	{0x4039a84c, 0x07},
++	{0x40396840, 0x00},
++	{0x40396844, 0x07},
++	{0x40396848, 0x04},
++	{0x4039684c, 0x05},
++	{0x40398830, 0x04},
++	{0x40398834, 0x05},
++	{0x40398838, 0x06},
++	{0x4039883c, 0x00},
++	{0x40398840, 0x01},
++	{0x40398844, 0x07},
++	{0x40398848, 0x03},
++	{0x4039884c, 0x02},
++	{0x4039a830, 0x01},
++	{0x4039a834, 0x03},
++	{0x4039a838, 0x04},
++	{0x4039a83c, 0x05},
++	{0x4039a840, 0x07},
++	{0x4039a844, 0x06},
++	{0x4039a848, 0x02},
++	{0x4039a84c, 0x00},
+ };
+ 
+ size_t dq_swap_cfg_size = ARRAY_SIZE(dq_swap_cfg);
+diff --git a/drivers/nxp/s32/ddr/s32g3/phy_cfg.c b/drivers/nxp/s32/ddr/s32g3/phy_cfg.c
+index 7aeece9..3872f6f 100644
+--- a/drivers/nxp/s32/ddr/s32g3/phy_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/phy_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -91,7 +91,7 @@ struct regconf_16 phy_cfg[] = {
+ 	{0x40381668, 0x00000002},
+ 	{0x40381314, 0x00000320},
+ 	{0x40381640, 0x00000009},
+-	{0x40381690, 0x00000134},
++	{0x40381690, 0x00000104},
+ 	{0x4039451c, 0x00000e20},
+ 	{0x40394520, 0x00000e20},
+ 	{0x4039651c, 0x00000e20},
+diff --git a/drivers/nxp/s32/ddr/s32g3/pie_cfg.c b/drivers/nxp/s32/ddr/s32g3/pie_cfg.c
+index fc23e6e..a6ca5f7 100644
+--- a/drivers/nxp/s32/ddr/s32g3/pie_cfg.c
++++ b/drivers/nxp/s32/ddr/s32g3/pie_cfg.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/include/drivers/nxp/s32/ddr/ddr_init.h b/include/drivers/nxp/s32/ddr/ddr_init.h
+index 47966ed..4264ffa 100644
+--- a/include/drivers/nxp/s32/ddr/ddr_init.h
++++ b/include/drivers/nxp/s32/ddr/ddr_init.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/include/drivers/nxp/s32/ddr/ddr_lp.h b/include/drivers/nxp/s32/ddr/ddr_lp.h
+index 1bdf9ed..4fd2e1b 100644
+--- a/include/drivers/nxp/s32/ddr/ddr_lp.h
++++ b/include/drivers/nxp/s32/ddr/ddr_lp.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2021-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+diff --git a/include/drivers/nxp/s32/ddr/ddr_utils.h b/include/drivers/nxp/s32/ddr/ddr_utils.h
+index c9d2538..486dd4e 100644
+--- a/include/drivers/nxp/s32/ddr/ddr_utils.h
++++ b/include/drivers/nxp/s32/ddr/ddr_utils.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2020-2022 NXP
++ * Copyright 2023 NXP
+  *
+  * Redistribution and use in source and binary forms, with or without
+  * modification, are permitted provided that the following conditions are met:
+@@ -70,15 +70,6 @@
+ #define OFFSET_DDRC_MRSTAT               ((uint32_t)0x18U)
+ #define OFFSET_DDRC_MRCTRL0              ((uint32_t)0x10U)
+ #define OFFSET_DDRC_MRCTRL1              ((uint32_t)0x14U)
+-
+-#if (ERRATA_S32_050543 == 1)
+-#define OFFSET_DDRC_DERATEEN             ((uint32_t)0x20U)
+-#define OFFSET_DDRC_RFSHTMG              ((uint32_t)0x64U)
+-#define OFFSET_DDRC_DRAMTMG0             ((uint32_t)0x100U)
+-#define OFFSET_DDRC_DRAMTMG1             ((uint32_t)0x104U)
+-#define OFFSET_DDRC_DRAMTMG4             ((uint32_t)0x110U)
+-#endif
+-
+ #define OFFSET_DDRC_DRAMTMG2             (uint32_t)0x108
+ #define OFFSET_DDRC_INIT6                (uint32_t)0xe8
+ #define OFFSET_DDRC_INIT7                (uint32_t)0xec
+@@ -114,40 +105,6 @@
+ #define RANKCTL_WR_GAP_POS 8
+ #define RANKCTL_WR_GAP_MASK ((uint32_t)0xfU)
+ 
+-#if (ERRATA_S32_050543 == 1)
+-#define RFSHTMG_VAL_SHIFT           16
+-#define RFSHTMG_VAL                 ((uint32_t)0xfffU)
+-#define RFSHTMG_MASK                (RFSHTMG_VAL << \
+-	RFSHTMG_VAL_SHIFT)
+-#define RFSHCTL3_UPDATE_SHIFT       1
+-#define RFSHCTL3_AUTO_REFRESH_VAL   0x1U
+-#define RFSHCTL3_MASK               (RFSHCTL3_AUTO_REFRESH_VAL \
+-	<< RFSHCTL3_UPDATE_SHIFT)
+-#define DERATEEN_ENABLE		0x1U
+-#define DRAMTMG4_TRCD_POS	24
+-#define DRAMTMG4_TRCD_MASK	0x1f
+-#define DRAMTMG4_TRRD_POS	8
+-#define DRAMTMG4_TRRD_MASK	0xf
+-#define DRAMTMG0_TRAS_POS	0
+-#define DRAMTMG0_TRAS_MASK	0x3f
+-#define DRAMTMG4_TRP_POS	0
+-#define DRAMTMG4_TRP_MASK	0x1f
+-#define DRAMTMG1_TRC_POS	0
+-#define DRAMTMG1_TRC_MASK	0x7f
+-#define SUCCESSIVE_READ		0x2U
+-#define	DERATEEN_MASK_DIS	0x1U
+-
+-#define RFSHTMG_UPDATE_SHIFT		2
+-#define RFSHCTL3_UPDATE_LEVEL_TOGGLE	0x1U
+-#define DRAMTMG4_TRCD_DELTA_TIME	2
+-#define DRAMTMG4_TRRD_DELTA_TIME	2
+-#define DRAMTMG0_TRAS_DELTA_TIME	2
+-#define DRAMTMG4_TRP_DELTA_TIME		2
+-#define DRAMTMG1_TRC_DELTA_TIME		3
+-#define ERRATA_CHANGES_REVERTED		1
+-#define ERRATA_CHANGES_UNMODIFIED	0
+-#endif
+-
+ #define CSS_SELSTAT_MASK		0x3f000000U
+ #define	CSS_SELSTAT_POS			24
+ #define	CSS_SWIP_POS			16
+@@ -333,18 +290,16 @@
+ #define SW_DONE_MASK              SHIFT_BIT(0)
+ #define SKIP_DRAM_INIT_MASK       (SHIFT_BIT(30) | SHIFT_BIT(31))
+ 
+-#if !defined(PLAT_s32r)
+ /* Standby SRAM */
+ #define STNDBY_RAM_BASE           0x24000000
+ 
+ /*
+-* This should be overwritten to store the configuration registers at different
+-* address. Default one is the beginning of standby RAM.
+-*/
++ * This should be overwritten to store the configuration registers at different
++ * address. Default one is the beginning of standby RAM.
++ */
+ #ifndef RETENTION_ADDR
+ #define RETENTION_ADDR            STNDBY_RAM_BASE
+ #endif
+-#endif
+ 
+ /* DDR Subsystem */
+ #define DDR_SS_REG                0x403D0000
+@@ -366,23 +321,6 @@
+ #define IMEM_START_ADDR 0x403A0000
+ #define DMEM_START_ADDR 0x403B0000
+ 
+-#if (ERRATA_S32_050543 == 1)
+-/* ERR050543 related defines */
+-#define MR4_IDX            4
+-#define MR4_MASK           0x7U
+-#define MR4_SHIFT          16
+-#define TUF_THRESHOLD      0x3U
+-#define REQUIRED_OK_CHECKS 0x3U
+-#endif
+-
+-#if !defined(PLAT_s32g3)
+-#define OFFSET_DFIPHYMSTR   ((uint32_t)0x1C4U)
+-#define DFIPHYMSTR_ENABLE   0x1U
+-#define DFIPHYMSTR_DISABLED 0x0U
+-#define SELFREF_TYPE_POS    4
+-#define PHY_MASTER_REQUEST  0x1U
+-#endif
+-
+ /* ERR050760 related defines */
+ #define REQUIRED_MRSTAT_READS 0x2U
+ 
+@@ -403,10 +341,6 @@ struct space_timing_params {
+ 	uint16_t tphy_wrdata_delay;
+ };
+ 
+-#if (ERRATA_S32_050543 == 1)
+-extern uint8_t polling_needed;
+-#endif
+-
+ /* Set default AXI parity. */
+ uint32_t set_axi_parity(void);
+ 
+@@ -422,15 +356,17 @@ uint32_t post_train_setup(uint8_t options);
+ uint32_t wait_firmware_execution(void);
+ 
+ /* Read lpddr4 mode register.
++ * @param mr_rank - rank access
+  * @param mr_index - index of mode register to be read
+  */
+-uint32_t read_lpddr4_mr(uint8_t mr_index);
++uint32_t read_lpddr4_mr(uint8_t mr_rank, uint8_t mr_index);
+ 
+ /* Write lpddr4 mode register
++ * @param mr_rank - rank access
+  * @param mr_index - index of mode register to be read
+  * @param mr_data - data to be written
+  */
+-uint32_t write_lpddr4_mr(uint8_t mr_index, uint8_t mr_data);
++uint32_t write_lpddr4_mr(uint8_t mr_rank, uint8_t mr_index, uint8_t mr_data);
+ 
+ /* Modify bitfield value with delta, given bitfield position and mask */
+ bool update_bf(uint32_t *v, uint8_t pos, uint32_t mask, int32_t delta);
+@@ -446,31 +382,4 @@ void read_vref_dq(void);
+ 
+ /* Calculate DFITMG1.dfi_t_wrdata_delay */
+ void compute_tphy_wrdata_delay(void);
+-
+-#if (ERRATA_S32_050543 == 1)
+-/* Read Temperature Update Flag from lpddr4 MR4 register. */
+-uint8_t read_tuf(void);
+-
+-/*
+- * Enable ERR050543 errata workaround.
+- * If the system is hot or cold prior to enabling derating, Temperature Update
+- * Flag might not be set in MR4 register, causing incorrect refresh period and
+- * derated timing parameters (tRCD, tRAS, rRP, tRRD being used.
+- * Software workaround requires reading MR register and adjusting timing
+- * parameters, if necessary.
+- */
+-uint32_t enable_derating_temp_errata(void);
+-
+-/*
+- * Periodically read Temperature Update Flag in MR4 and undo changes made by
+- * ERR050543 workaround if no longer needed. Refresh rate is updated and auto
+- * derating is turned on.
+- * @param traffic_halted - if ddr traffic was halted, restore also timing
+- * parameters
+- * @return - Returns 1, if the errata changes are reverted, 0 otherwise
+- */
+-uint32_t poll_derating_temp_errata(bool traffic_halted);
+-
+-#endif
+-
+ #endif /* DDR_UTILS_H_ */
+diff --git a/include/dt-bindings/clock/s32gen1-clock-freq.h b/include/dt-bindings/clock/s32gen1-clock-freq.h
+index 23115de..45814bf 100644
+--- a/include/dt-bindings/clock/s32gen1-clock-freq.h
++++ b/include/dt-bindings/clock/s32gen1-clock-freq.h
+@@ -43,7 +43,7 @@
+ #define S32GEN1_XBAR_2X_FREQ			(793236859UL)
+ #define S32GEN1_PERIPH_PLL_PHI0_MIN_FREQ	(100 * MHZ)
+ #define S32GEN1_PERIPH_PLL_PHI2_MIN_FREQ	(40 * MHZ)
+-#define S32GEN1_QSPI_CLK_FREQ			    (200 * MHZ)
++#define S32GEN1_QSPI_CLK_FREQ			    (133333333)
+ 
+ #elif defined(PLAT_s32r)
+ #define S32GEN1_A53_MAX_FREQ			(800 * MHZ)
+-- 
+2.25.1
+

@@ -1,0 +1,59 @@
+From 613eab7d77f7ae382f4d9ab0d8d0fb509ef814f8 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 15 Mar 2023 15:56:02 +0800
+Subject: [PATCH 1/1] move A53 core PLL clock set to M7 to fix LLCE issu
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/nxp/s32/clk/early_clocks.c             | 10 ++++++----
+ 1 files changed, 6 insertions(+), 4 deletions(-)
+ mode change 100644 => 100755 include/dt-bindings/clock/s32gen1-clock-freq.h
+
+diff --git a/drivers/nxp/s32/clk/early_clocks.c b/drivers/nxp/s32/clk/early_clocks.c
+index f7f4951..4193bcf 100755
+--- a/drivers/nxp/s32/clk/early_clocks.c
++++ b/drivers/nxp/s32/clk/early_clocks.c
+@@ -54,7 +54,9 @@ static struct clk mc_cgm1_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM1_MUX0);
+ static struct clk a53_clk = CLK_INIT(S32GEN1_CLK_A53_CORE);
+
+ /* XBAR clock */
++#ifndef HPER_GEN2_G3
+ static struct clk firc = CLK_INIT(S32GEN1_CLK_FIRC);
++#endif
+ static struct clk arm_dfs1 = CLK_INIT(S32GEN1_CLK_ARM_PLL_DFS1);
+ static struct clk mc_cgm0_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX0);
+ static struct clk xbar_2x = CLK_INIT(S32GEN1_CLK_XBAR_2X);
+@@ -86,7 +88,7 @@ static struct clk mc_cgm5_mux0 = CLK_INIT(S32GEN1_CLK_MC_CGM5_MUX0);
+ static struct clk ddr = CLK_INIT(S32GEN1_CLK_DDR);
+
+ static const struct siul2_freq_mapping *early_freqs;
+-
++#ifndef HPER_GEN2_G3
+ static int switch_xbar_to_firc(void)
+ {
+ 	int ret;
+@@ -97,7 +99,7 @@ static int switch_xbar_to_firc(void)
+
+ 	return s32gen1_enable(&xbar_2x, 1);
+ }
+-
++#endif
+ static int enable_xbar_clock(void)
+ {
+ 	int ret;
+@@ -271,11 +273,11 @@ int s32_enable_ddr_clock(void)
+ int s32_plat_clock_init(bool skip_ddr_clk)
+ {
+ 	int ret;
+-
++#ifndef HPER_GEN2_G3
+ 	ret = switch_xbar_to_firc();
+ 	if (ret)
+ 		return ret;
+-
++#endif
+ 	ret = s32_enable_a53_clock();
+ 	if (ret)
+ 		return ret;
+--
+2.35.1

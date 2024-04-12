@@ -1,0 +1,31 @@
+From 53ad74ec3e9a4f837b329100ec845766e01caaa4 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Mon, 5 Dec 2022 16:34:04 +0800
+Subject: [PATCH 1/1] IIP-147820: fix flash linux ping issue
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+ mode change 100644 => 100755 drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c
+old mode 100644
+new mode 100755
+index 820894c09..6e5f912d0
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-s32cc.c
+@@ -114,8 +114,8 @@ static int s32cc_gmac_init(struct platform_device *pdev, void *priv)
+ 			ret = clk_prepare_enable(gmac->tx_clk);
+ 
+ 		if (ret) {
+-			dev_err(&pdev->dev, "Can't set tx clock\n");
+-			return ret;
++			// SCMI clk enable fails. Go ahead without return
++			dev_info(&pdev->dev, "Can't set tx clock\n");
+ 		}
+ 	}
+ 
+-- 
+2.35.1
+

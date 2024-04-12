@@ -1,0 +1,5 @@
+menu "File systems"
+
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/fs/nfs/Config.in"
+
+endmenu

@@ -1,0 +1,62 @@
+arch=arm
+baudrate=115200
+board=s32-gen1
+board_name=s32-gen1
+boot_fdt=try
+boot_flash=echo Booting flash image from eMMC; run bootargsflash; mmc dev ${mmcdev} ${mmcpart}; mmc read ${loadaddr} ${flash_kernel_emmc_block} ${flash_kernel_max_blk_count};mmc read ${fdt_addr} ${flash_dtb_emmc_block} ${flash_dtb_max_blk_count};mmc read ${ramdisk_addr} ${flash_ramdisk_emmc_block} ${flash_ramdisk_max_blk_count};pfeng stop; ${boot_mtd} ${loadaddr} ${ramdisk_addr} ${fdt_addr};
+boot_hv=echo Booting hypervisor from eMMC; mmc read ${hv_addr} ${hv_emmc_block} ${hv_max_blk_count};pfeng stop; bootm ${hv_addr}
+boot_linux=echo Booting Linux from eMMC; run bootargsmmc;ext4load mmc ${mmcdev}:${mmcpart} ${loadaddr} /boot/Image;ext4load mmc ${mmcdev}:${mmcpart} ${fdt_addr} /boot/board.dtb;pfeng stop; ${boot_mtd} ${loadaddr} - ${fdt_addr};
+boot_mtd=booti
+boot_tftp=echo Booting image from TFTP; run bootargsram;run loadtftpimage; run loadtftpfdt;pfeng stop; ${boot_mtd} ${loadaddr} - ${fdt_addr};
+bootargs=console=ttyLF0,115200 root=/dev/ram rw earlycon hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M
+bootargsflash=setenv bootargs console=${console},${baudrate} root=/dev/ram rw earlycon hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M;
+bootargsmmc=setenv bootargs console=${console},${baudrate} root=${mmcroot}hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M
+bootargsram=setenv bootargs console=${console},${baudrate} root=/dev/mmcblk0p3 rootfstype=squashfs rootwait ro earlycon ip=${ipaddr}:${serverip}::${netmask}::pfe0:off hpe_args=${pfeaddr},${pfe1addr},${pfe2addr} nohz=off coherent_pool=64M
+bootcmd=run boot_tftp
+bootdelay=-2
+console=ttyLF0
+cpu=armv8
+ethact=eth_eqos
+ethaddr=02:04:00:00:00:03
+fdt_addr=0x83E00000
+fdt_file=hper_gen2.dtb
+fdt_high=0xa0000000
+fdtcontroladdr=fcfbcb30
+flash_dtb_emmc_block=0x5EE8
+flash_dtb_max_blk_count=0x100;
+flash_kernel_emmc_block=0x28
+flash_kernel_max_blk_count=0x5EC0;
+flash_ramdisk_emmc_block=0x5FE8
+flash_ramdisk_max_blk_count=0x9C00;
+hwconfig=pcie0:mode=sgmii,clock=int,fmhz=125,xpcs_mode=both;pcie1:mode=sgmii,clock=int,fmhz=125,xpcs_mode=2G5
+hv_addr=0x84ffffc0
+hv_emmc_block=0x10000;
+hv_max_blk_count=0x10000;
+image=Image_hpe_flash
+initrd_high=0xffffffff
+ipaddr=192.168.3.2
+loadaddr=0x80080000
+loadtftpfdt=tftp ${fdt_addr} ${fdt_file};
+loadtftpimage=tftp ${loadaddr} ${image};
+loadtftpramdisk=tftp ${ramdisk_addr} ${ramdisk};
+mem=1024000k
+mmcdev=0
+mmcpart=1
+mmcroot=/dev/mmcblk0p1 rootwait rw
+netmask=255.255.255.0
+pfe1addr=d6:17:e4:76:e3:c6
+pfe2addr=ce:de:02:02:f6:d0
+pfeaddr=02:04:00:00:00:02
+pfeng_mode=enable,sgmii,rgmii,sgmii
+pfengemac=0
+ramdisk=rootfs_flash.cpio.gz.u-boot
+ramdisk_addr=0x90000000
+s32cc_gmac_mode=enable
+script=boot.scr
+serverip=192.168.3.10
+soc=s32
+stderr=serial
+stdin=serial
+stdout=serial
+vendor=freescale
+vlan=65

@@ -1,0 +1,30 @@
+From 284fb206cb27bb216dc00a07d4baca8ee81cbe2c Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Thu, 16 Mar 2023 15:05:19 +0800
+Subject: [PATCH 1/1] change XBAR_2X_MAX_FREQ to 800000000
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/nxp/s32/clk/s32g3_clk.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+ mode change 100644 => 100755 drivers/nxp/s32/clk/s32g3_clk.c
+
+diff --git a/drivers/nxp/s32/clk/s32g3_clk.c b/drivers/nxp/s32/clk/s32g3_clk.c
+old mode 100644
+new mode 100755
+index 31a7310..c7d655f
+--- a/drivers/nxp/s32/clk/s32g3_clk.c
++++ b/drivers/nxp/s32/clk/s32g3_clk.c
+@@ -26,8 +26,8 @@
+  * A53/VCO/PHI0 mapped frequencies, not to the order
+  * of the actual values
+  */
+-#define S32GEN1_XBAR_2X_MAX_FREQ	(793236859UL)
+-#define S32GEN1_XBAR_2X_MID_FREQ	(792007785UL)
++#define S32GEN1_XBAR_2X_MAX_FREQ	(800000000UL)
++#define S32GEN1_XBAR_2X_MID_FREQ	(800000000UL)
+ #define S32GEN1_XBAR_2X_LOW_FREQ	(800 * MHZ)
+
+ /* GMAC_TS_CLK */
+--
+2.35.1

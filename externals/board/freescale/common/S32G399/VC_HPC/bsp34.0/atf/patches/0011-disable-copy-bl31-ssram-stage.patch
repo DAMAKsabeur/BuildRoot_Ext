@@ -1,0 +1,44 @@
+From a916b945eaac261b90f5cdc0a2777fbd37560139 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 22 Mar 2023 15:26:29 +0800
+Subject: [PATCH 1/1] disable copy bl31 ssram stage
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ plat/nxp/s32/s32g/s32g_bl2_el3.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 50cbcca..f646fe7 100755
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -102,7 +102,7 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+
+ 	bl_mem_params_desc_num = index;
+ }
+-
++#if 0
+ static void copy_bl31ssram_image(void)
+ {
+ #if S32CC_EMU == 0
+@@ -110,6 +110,8 @@ static void copy_bl31ssram_image(void)
+ 	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
+ #endif
+ }
++#endif
++
+ #define PFE_COH_EN_ADDRESS 0x4007CA00
+ #define en_value           0x1e
+ void bl2_el3_plat_arch_setup(void)
+@@ -147,7 +149,8 @@ void bl2_el3_plat_arch_setup(void)
+
+ 	s32_ssram_clear();
+
+-	copy_bl31ssram_image();
++	/* disable Copy bl31 ssram stage */
++	//copy_bl31ssram_image();
+
+ 	clear_swt_faults();
+
+--
+2.35.1

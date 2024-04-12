@@ -1,0 +1,603 @@
+From 5dc20b54b4ee24cd6bce9a30a222ef068abb783e Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Tue, 21 Mar 2023 14:58:17 +0800
+Subject: [PATCH 1/1] update bsp34 for xmi
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ drivers/nxp/s32/clk/early_clocks.c            |  8 +++
+ drivers/nxp/s32/s32g_wkpu.c                   |  4 ++
+ plat/nxp/s32/include/s32_platform_def.h       |  7 +--
+ plat/nxp/s32/s32_common.mk                    | 24 ++++++---
+ plat/nxp/s32/s32_psci.c                       |  2 +
+ plat/nxp/s32/s32_sramc.c                      |  2 +-
+ plat/nxp/s32/s32_storage.c                    | 21 +++++++-
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |  4 +-
+ plat/nxp/s32/s32g/s32g_bl2_el3.c              | 49 ++++++++++++++++---
+ plat/nxp/s32/s32g/s32g_bl31.c                 |  2 +
+ plat/nxp/s32/s32g/s32g_bl_common.c            |  2 +
+ plat/nxp/s32/s32g/s32g_common.mk              |  2 -
+ plat/nxp/s32/s32g/s32g_plat_funcs.c           |  4 ++
+ plat/nxp/s32/s32g/s32g_resume.c               |  4 ++
+ 14 files changed, 113 insertions(+), 22 deletions(-)
+ mode change 100644 => 100755 drivers/nxp/s32/clk/early_clocks.c
+ mode change 100644 => 100755 drivers/nxp/s32/s32g_wkpu.c
+ mode change 100644 => 100755 plat/nxp/s32/include/s32_platform_def.h
+ mode change 100644 => 100755 plat/nxp/s32/s32_common.mk
+ mode change 100644 => 100755 plat/nxp/s32/s32_psci.c
+ mode change 100644 => 100755 plat/nxp/s32/s32_sramc.c
+ mode change 100644 => 100755 plat/nxp/s32/s32_storage.c
+ mode change 100644 => 100755 plat/nxp/s32/s32g/include/s32g_platform_def.h
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_bl2_el3.c
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_bl31.c
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_bl_common.c
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_common.mk
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_plat_funcs.c
+ mode change 100644 => 100755 plat/nxp/s32/s32g/s32g_resume.c
+
+diff --git a/drivers/nxp/s32/clk/early_clocks.c b/drivers/nxp/s32/clk/early_clocks.c
+old mode 100644
+new mode 100755
+index 37f3386..f7f4951
+--- a/drivers/nxp/s32/clk/early_clocks.c
++++ b/drivers/nxp/s32/clk/early_clocks.c
+@@ -66,6 +66,7 @@ static struct clk periph_pll_phi3 = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_PHI3);
+ static struct clk mc_cgm0_mux8 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX8);
+ static struct clk lin_baud = CLK_INIT(S32GEN1_CLK_LIN_BAUD);
+
++#ifndef HPER_GEN2_G3
+ /* SDHC */
+ static struct clk periph_dfs3 = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_DFS3);
+ static struct clk mc_cgm0_mux14 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX14);
+@@ -75,6 +76,7 @@ static struct clk sdhc = CLK_INIT(S32GEN1_CLK_SDHC);
+ static struct clk periph_dfs1 = CLK_INIT(S32GEN1_CLK_PERIPH_PLL_DFS1);
+ static struct clk mc_cgm0_mux12 = CLK_INIT(S32GEN1_CLK_MC_CGM0_MUX12);
+ static struct clk qspi = CLK_INIT(S32GEN1_CLK_QSPI);
++#endif
+
+ /* DDR clock */
+ static struct clk ddr_pll_mux = CLK_INIT(S32GEN1_CLK_DDR_PLL_MUX);
+@@ -149,9 +151,11 @@ int s32_enable_a53_clock(void)
+ 	if (rate != early_freqs->a53_freq)
+ 		return -EINVAL;
+
++#ifdef HPER_GEN2_G3
+ 	ret = s32gen1_enable(&a53_clk, 1);
+ 	if (ret)
+ 		return ret;
++#endif
+
+ 	return enable_xbar_clock();
+ }
+@@ -198,6 +202,7 @@ static int setup_periph_pll(void)
+ 	return 0;
+ }
+
++#ifndef HPER_GEN2_G3
+ static int enable_sdhc_clock(void)
+ {
+ 	int ret;
+@@ -237,6 +242,7 @@ static int enable_qspi_clock(void)
+
+ 	return s32gen1_enable(&qspi, 1);
+ }
++#endif
+
+ int s32_enable_ddr_clock(void)
+ {
+@@ -282,6 +288,7 @@ int s32_plat_clock_init(bool skip_ddr_clk)
+ 	if (ret)
+ 		return ret;
+
++#ifndef HPER_GEN2_G3
+ 	if (fip_mmc_offset) {
+ 		ret = enable_sdhc_clock();
+ 		if (ret)
+@@ -291,6 +298,7 @@ int s32_plat_clock_init(bool skip_ddr_clk)
+ 		if (ret)
+ 			return ret;
+ 	}
++#endif
+
+ 	if (!skip_ddr_clk)
+ 		return s32_enable_ddr_clock();
+diff --git a/drivers/nxp/s32/s32g_wkpu.c b/drivers/nxp/s32/s32g_wkpu.c
+old mode 100644
+new mode 100755
+index 92d4436..2aaa21d
+--- a/drivers/nxp/s32/s32g_wkpu.c
++++ b/drivers/nxp/s32/s32g_wkpu.c
+@@ -87,6 +87,7 @@ void s32gen1_wkpu_enable_irqs(void)
+ 	mmio_write_32(gwkpu.gpr, WKUP_PUS_PU_OVERRIDE | gwkpu.pullups);
+ }
+
++#ifndef HPER_GEN2_G3
+ static void init_wkpu(struct s32gen1_wkpu *wkpu)
+ {
+ 	/* Disable interrupts */
+@@ -184,9 +185,11 @@ static int init_from_dt(void *fdt, int fdt_offset, struct s32gen1_wkpu *wkpu)
+
+ 	return 0;
+ }
++#endif
+
+ int s32gen1_wkpu_init(void *fdt, int fdt_offset)
+ {
++#ifndef HPER_GEN2_G3
+ 	int ret;
+
+ 	ret = init_from_dt(fdt, fdt_offset, &gwkpu);
+@@ -194,6 +197,7 @@ int s32gen1_wkpu_init(void *fdt, int fdt_offset)
+ 		return ret;
+
+ 	init_wkpu(&gwkpu);
++#endif
+
+ 	return 0;
+ }
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+old mode 100644
+new mode 100755
+index 5170c90..8ae68e6
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -85,13 +85,13 @@
+ #define S32_SRAM_END		(S32_SRAM_BASE + S32_SRAM_SIZE)
+
+ /* Top of the first 2GB bank of physical memory */
+-#define S32_DDR0_END		0xffffffff
++#define S32_DDR0_END		0xdfffffff
+
+ /* Note: depending on the compiler optimization level, this may or may not be
+  * enough to prevent overflowing onto the adjacent SRAM image. Handle with care,
+  * wear a helmet and compile with -Os.
+  */
+-#define BOOTROM_ADMA_RSRVD_BASE		(0x343ff000)
++#define BOOTROM_ADMA_RSRVD_BASE		(FIP_MEMORY_OFFSET + 2 * SIZE_1M)
+ #define BL2_LIMIT					(BOOTROM_ADMA_RSRVD_BASE - 1)
+
+ /* U-boot addresses in DDR.
+@@ -103,7 +103,8 @@
+ #define BL33_BASE		        (S32_DDR0_END - S32_BL33_IMAGE_SIZE - \
+ 						SIZE_1M + 1)
+ /* U-Boot: CONFIG_S32GEN1_MAX_DTB_SIZE */
+-#define BL33_MAX_DTB_SIZE	    (0x8000)
++//#define BL33_MAX_DTB_SIZE	    (0x7000)
++#define BL33_MAX_DTB_SIZE	    (HPER_GEN2_G3_MAX_DTB_SIZE)
+ /* U-Boot: CONFIG_SYS_TEXT_BASE  */
+ #define BL33_ENTRYPOINT		    (BL33_BASE + 0xa0000)
+ #define BL33_DTB		    (BL33_ENTRYPOINT - BL33_MAX_DTB_SIZE)
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+old mode 100644
+new mode 100755
+index cf0e4dc..e8f6495
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -16,6 +16,17 @@ ERRATA_A53_836870	:= 1
+ ERRATA_A53_1530924	:= 1
+ ERRATA_SPECULATIVE_AT	:= 1
+
++HPER_GEN2_G3	:= 1
++
++ifneq ($(HPER_GEN2_G3),)
++$(eval $(call add_define_val,HPER_GEN2_G3,$(HPER_GEN2_G3)))
++
++HPER_GEN2_G3_MAX_DTB_SIZE :=0x7000
++$(eval $(call add_define_val,HPER_GEN2_G3_MAX_DTB_SIZE,$(HPER_GEN2_G3_MAX_DTB_SIZE)))
++
++$(eval $(call add_define_val,FIP_MEMORY_OFFSET,$(FIP_MEMORY_OFFSET)))
++endif
++
+ # Tools
+ AWK ?= gawk
+ HEXDUMP ?= xxd
+@@ -73,7 +84,6 @@ PLAT_BL_COMMON_SOURCES += \
+ 			${S32_DRIVERS}/clk/s32gen1_clk.c \
+ 			${S32_DRIVERS}/rst/s32gen1_rst.c \
+ 			${S32_DRIVERS}/clk/set_par_rate.c \
+-			${S32_DRIVERS}/i2c/s32_i2c.c \
+ 			${BOOT_INFO_SRC} \
+
+ BL2_SOURCES += \
+@@ -83,10 +93,7 @@ BL2_SOURCES += \
+ 			common/fdt_fixup.c \
+ 			drivers/io/io_fip.c \
+ 			drivers/io/io_storage.c \
+-			drivers/mmc/mmc.c \
+-			${S32_DRIVERS}/io/io_mmc.c \
+ 			${S32_DRIVERS}/io/io_memmap.c \
+-			${S32_DRIVERS}/mmc/s32_mmc.c \
+ 			lib/optee/optee_utils.c \
+ 			${S32_PLAT}/s32_bl2_el3.c \
+ 			${S32_PLAT}/s32_storage.c \
+@@ -344,7 +351,12 @@ ${DTB_SIZE_FILE}: dtbs
+ 	${ECHO} "  CREATE  $@"
+ 	$(eval FIP_ALIGN_HEX = $(shell printf "0x%x" ${FIP_ALIGN}))
+ 	$(eval DTB_S = $(shell $(call hexfilesize, ${BUILD_PLAT}/fdts/${DTB_FILE_NAME})))
++ifneq 	(${HPER_GEN2_G3},)
++	$(eval DTB_SIZE = ${HPER_GEN2_G3_MAX_DTB_SIZE})
++	${Q}echo "HPC_GAC_G3_SPECIFY/DTB_SIZE is ${DTB_SIZE}"
++else
+ 	$(eval DTB_SIZE = 0x$(shell $(call hexbc, ${DTB_S}, /, ${FIP_ALIGN_HEX}, *, ${FIP_ALIGN_HEX}, +, ${FIP_ALIGN_HEX})))
++endif
+ 	${Q}echo "${DTB_SIZE}" > $@
+
+ ${BL2_W_DTB}: bl2 dtbs ${DTB_SIZE_FILE}
+@@ -404,9 +416,9 @@ endif
+ 	fi
+
+ ifneq (${HSE_SECBOOT},)
+-BL2_BASE		:= 0x34080000
++BL2_BASE		:=0x34ed0000
+ else
+-BL2_BASE		:= 0x34302000
++BL2_BASE		:=0x34ed0000
+ endif
+ $(eval $(call add_define,BL2_BASE))
+
+diff --git a/plat/nxp/s32/s32_psci.c b/plat/nxp/s32/s32_psci.c
+old mode 100644
+new mode 100755
+index 6c66f83..0d5293f
+--- a/plat/nxp/s32/s32_psci.c
++++ b/plat/nxp/s32/s32_psci.c
+@@ -175,8 +175,10 @@ static void __dead2 s32_system_reset(void)
+
+ static void __dead2 s32_system_off(void)
+ {
++#ifndef HPER_GEN2_G3
+ #if defined(PLAT_s32g2) || defined(PLAT_s32g3)
+ 	pmic_system_off();
++#endif
+ #endif
+ 	plat_panic_handler();
+ }
+diff --git a/plat/nxp/s32/s32_sramc.c b/plat/nxp/s32/s32_sramc.c
+old mode 100644
+new mode 100755
+index 5f14c38..b752895
+--- a/plat/nxp/s32/s32_sramc.c
++++ b/plat/nxp/s32/s32_sramc.c
+@@ -20,7 +20,7 @@
+ #define SRAMC_PRAMSR_OFFSET     0xC
+ #define SRAMC_PRAMSR_IDONE      1
+
+-#define SSRAM_MAX_ADDR          0x7FF
++#define SSRAM_MAX_ADDR ((S32G_SSRAM_SIZE / 16) - 1)
+
+ int _s32_sram_clr(uintptr_t start, uintptr_t end);
+
+diff --git a/plat/nxp/s32/s32_storage.c b/plat/nxp/s32/s32_storage.c
+old mode 100644
+new mode 100755
+index 97826a1..28e20d4
+--- a/plat/nxp/s32/s32_storage.c
++++ b/plat/nxp/s32/s32_storage.c
+@@ -27,13 +27,17 @@
+ #define FIP_BACKEND_MEMMAP_ID	(BL33_IMAGE_ID + 1)
+ #endif
+
++#ifndef HPER_GEN2_G3
+ static const io_dev_connector_t *s32_mmc_io_conn;
+ static uintptr_t s32_mmc_dev_handle;
++#endif
+
+ static const io_dev_connector_t *s32_memmap_io_conn;
+ static uintptr_t s32_memmap_dev_handle;
+
++#ifndef HPER_GEN2_G3
+ static int s32_check_mmc_dev(const uintptr_t spec);
++#endif
+ static int s32_check_memmap_dev(const uintptr_t spec);
+
+ static const io_block_spec_t fip_memmap_spec = {
+@@ -85,6 +89,7 @@ static struct plat_io_policy s32_policies[] = {
+ 	},
+ };
+
++#ifndef HPER_GEN2_G3
+ static int s32_check_mmc_dev(const uintptr_t spec)
+ {
+ 	uintptr_t local_handle;
+@@ -98,6 +103,7 @@ static int s32_check_mmc_dev(const uintptr_t spec)
+
+ 	return 0;
+ }
++#endif
+
+ static int s32_check_memmap_dev(const uintptr_t spec)
+ {
+@@ -113,19 +119,22 @@ static int s32_check_memmap_dev(const uintptr_t spec)
+ 	return 0;
+ }
+
++#ifndef HPER_GEN2_G3
+ static bool is_mmc_boot_source(void)
+ {
+ 	return !!fip_mmc_offset;
+ }
++#endif
+
+ static unsigned long get_fip_offset(void)
+ {
++#ifndef HPER_GEN2_G3
+ 	if (fip_mmc_offset)
+ 		return fip_mmc_offset;
+
+ 	if (fip_qspi_offset)
+ 		return fip_qspi_offset;
+-
++#endif
+ 	return fip_mem_offset;
+ }
+
+@@ -183,9 +192,11 @@ void set_image_spec(const uuid_t *uuid, uint64_t size, uint64_t offset)
+ 		return;
+ 	}
+
++#ifndef HPER_GEN2_G3
+ 	if (is_mmc_boot_source())
+ 		spec->length = ROUND_TO_MMC_BLOCK_SIZE(size);
+ 	else
++#endif
+ 		spec->length = size;
+
+ 	/* In FIP header the offset is relative to the FIP header start.
+@@ -216,10 +227,14 @@ static void set_img_source(struct plat_io_policy *policy,
+
+ 	policy->image_spec = (uintptr_t)crt_spec;
+
++#ifndef HPER_GEN2_G3
+ 	if (is_mmc_boot_source() && image_id != FIP_IMAGE_ID) {
+ 		policy->dev_handle = &s32_mmc_dev_handle;
+ 		policy->check = s32_check_mmc_dev;
+-	} else {
++	}
++	else
++#endif
++	{
+ 		policy->dev_handle = &s32_memmap_dev_handle;
+ 		policy->check = s32_check_memmap_dev;
+ 	}
+@@ -262,6 +277,7 @@ void s32_io_setup(void)
+ 			(uintptr_t)FIP_BACKEND_MEMMAP_ID))
+ 		goto err;
+
++#ifndef HPER_GEN2_G3
+ 	if (!fip_mmc_offset)
+ 		return;
+
+@@ -275,6 +291,7 @@ void s32_io_setup(void)
+ 			(uintptr_t)get_image_spec_from_id(BL2_IMAGE_ID),
+ 			&s32_mmc_dev_handle))
+ 		goto err;
++#endif
+
+ 	return;
+ err:
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+old mode 100644
+new mode 100755
+index 9b664d4..0170ae6
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -15,6 +15,8 @@
+ #include <tbbr_img_def.h>
+ #include <s32_platform_def.h>
+
++#include "SRAM_address.h"
++
+ #define SIUL2_1_BASE_ADDR	0x44010000UL
+ #define S32_MAX_I2C_MODULES 5
+
+@@ -25,7 +27,7 @@
+ #define CA53_1_3_RVBARADDR_39_32_OFF	(24)
+
+ #define S32G_SSRAM_BASE		(0x24000000)
+-#define S32G_SSRAM_SIZE		(0x8000)
++#define S32G_SSRAM_SIZE		(0x6000)
+ #define S32G_SSRAM_LIMIT	(S32G_SSRAM_BASE + S32G_SSRAM_SIZE)
+
+ /* RTC definitions space */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+old mode 100644
+new mode 100755
+index 2e20bf2..6a763e4
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -25,7 +25,9 @@
+ #include <ddr/ddr_init.h>
+ #include <drivers/nxp/s32/ddr/ddr_lp.h>
+ #endif
++#include "SRAM_address.h"
+
++#define PERF_SYS_RESET_REASON     2
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[6];
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+
+@@ -58,6 +60,7 @@ static enum reset_cause get_reset_cause(void)
+
+ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ {
++	NOTICE("called resume_bl31");
+ #if S32CC_EMU == 0
+ 	s32g_warm_entrypoint_t resume_entrypoint;
+ 	uintptr_t csr_addr;
+@@ -120,22 +123,39 @@ static void copy_bl31ssram_image(void)
+ 	memcpy((void *)S32G_SSRAM_BASE, bl31ssram, bl31ssram_len);
+ #endif
+ }
+-
++#define PFE_COH_EN_ADDRESS 0x4007CA00
++#define en_value           0x1e
+ void bl2_el3_plat_arch_setup(void)
+ {
+ 	uint32_t ret;
++	uint32_t wake_up_reason = 0;
++	uint32_t boot_up_reason = *((volatile uint32_t*)HPCGEN2_SRAM_BOOT_MODE_FLAG_START_ADDRESS);
++	NOTICE("boot_up_reason = %d\n", boot_up_reason);
++
++	if (boot_up_reason == 0)
++	{
++		wake_up_reason = *((volatile uint32_t*)HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS);
++		NOTICE("wake_up_reason = %d\n", wake_up_reason);
++	}
+
+-	ret = s32_el3_mmu_fixup();
+-	if (ret)
+-		panic();
++	if ( wake_up_reason == PERF_SYS_RESET_REASON) {
++		mmio_write_32(PFE_COH_EN_ADDRESS, en_value);
++		NOTICE("do not need s32_el3_mmu_fixup\n");
++	} else {
++		ret = s32_el3_mmu_fixup();
++		if (ret)
++			panic();
++	}
+
+ 	dt_init_ocotp();
++#ifndef HPER_GEN2_G3
+ 	dt_init_pmic();
+
+ #if S32CC_EMU == 0
+ 	ret = pmic_setup();
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
++#endif
+ #endif
+
+ 	s32_sram_clear(S32_BL33_IMAGE_BASE, get_bl2_dtb_base());
+@@ -152,9 +172,24 @@ void bl2_el3_plat_arch_setup(void)
+ 	clear_swt_faults();
+
+ 	/* This will also populate CSR section from bl31ssram */
+-	ret = ddr_init();
+-	if (ret)
+-		panic();
++	if (boot_up_reason == 0)
++	{
++		if ( wake_up_reason == PERF_SYS_RESET_REASON)
++		{
++			NOTICE("ddr do not should init\n");
++		}
++		else
++		{
++			NOTICE("ddr do init\n");
++			ret = ddr_init();
++			if (ret)
++				panic();
++		}
++	} else {
++		ret = ddr_init();
++		if (ret)
++			panic();
++	}
+
+ #if (ERRATA_S32_050543 == 1)
+ 	ddr_errata_update_flag(polling_needed);
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+old mode 100644
+new mode 100755
+index 22a0066..764130e
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -112,7 +112,9 @@ void bl31_platform_setup(void)
+ {
+ 	generic_delay_timer_init();
+
++#ifndef HPER_GEN2_G3
+ 	dt_init_pmic();
++#endif
+ 	dt_init_wkpu();
+ 	dt_init_ocotp();
+
+diff --git a/plat/nxp/s32/s32g/s32g_bl_common.c b/plat/nxp/s32/s32g/s32g_bl_common.c
+old mode 100644
+new mode 100755
+index 905f4e9..d259402
+--- a/plat/nxp/s32/s32g/s32g_bl_common.c
++++ b/plat/nxp/s32/s32g/s32g_bl_common.c
+@@ -30,6 +30,7 @@ void s32g_reinit_i2c(void)
+ 		s32_i2c_init(&i2c_drivers[i].bus);
+ }
+
++#ifndef HPER_GEN2_G3
+ void dt_init_pmic(void)
+ {
+ 	void *fdt = NULL;
+@@ -75,6 +76,7 @@ void dt_init_pmic(void)
+ 		}
+ 	}
+ }
++#endif
+
+ void dt_init_ocotp(void)
+ {
+diff --git a/plat/nxp/s32/s32g/s32g_common.mk b/plat/nxp/s32/s32g/s32g_common.mk
+old mode 100644
+new mode 100755
+index 92fd5d7..2e2c5bd
+--- a/plat/nxp/s32/s32g/s32g_common.mk
++++ b/plat/nxp/s32/s32g/s32g_common.mk
+@@ -32,9 +32,7 @@ PLAT_BL_COMMON_SOURCES	+= \
+ 			   ${S32_DRIVERS}/clk/s32g_clk.c \
+ 			   ${S32_DRIVERS}/ocotp.c \
+ 			   lib/utils/crc8.c \
+-			   ${S32_SOC_FAMILY}/s32g_vr5510.c \
+ 			   ${S32_SOC_FAMILY}/s32g_plat_funcs.c \
+-			   ${S32_DRIVERS}/pmic/vr5510.c \
+ 			   ${BL31SRAM_SRC_DUMP} \
+
+ BL2_SOURCES		+= \
+diff --git a/plat/nxp/s32/s32g/s32g_plat_funcs.c b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+old mode 100644
+new mode 100755
+index dac4e36..09c2920
+--- a/plat/nxp/s32/s32g/s32g_plat_funcs.c
++++ b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+@@ -50,12 +50,16 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+
+ 	plat_gic_save();
+ 	set_warm_entry();
++#ifndef HPER_GEN2_G3
+ 	pmic_prepare_for_suspend();
++#endif
+ 	s32gen1_wkpu_enable_irqs();
+
++#ifndef HPER_GEN2_G3
+ 	/* Shutting down cores */
+ 	/* M7 cores */
+ 	s32_turn_off_mcores();
++#endif
+
+ 	if (is_lockstep_enabled())
+ 		ncores /= 2;
+diff --git a/plat/nxp/s32/s32g/s32g_resume.c b/plat/nxp/s32/s32g/s32g_resume.c
+old mode 100644
+new mode 100755
+index 6110d36..be7646b
+--- a/plat/nxp/s32/s32g/s32g_resume.c
++++ b/plat/nxp/s32/s32g/s32g_resume.c
+@@ -32,16 +32,20 @@ static void reset_rtc(void)
+
+ void s32g_resume_entrypoint(void)
+ {
++#ifndef HPER_GEN2_G3
+ 	int ret;
++#endif
+
+ 	/* Prepare resume operation */
+ 	reset_registers_for_lockstep();
+ 	s32_ncore_isol_cluster0();
+ 	s32_early_plat_init(true);
+
++#ifndef HPER_GEN2_G3
+ 	ret = pmic_setup();
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
++#endif
+
+ 	reset_rtc();
+ 	s32gen1_wkpu_reset();
+--
+2.35.1

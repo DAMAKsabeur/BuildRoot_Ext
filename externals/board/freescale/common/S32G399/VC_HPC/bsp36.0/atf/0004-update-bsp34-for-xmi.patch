@@ -1,0 +1,25 @@
+From af6b920c5014daa101bc1afbf113cab07f4d1c03 Mon Sep 17 00:00:00 2001
+From: Hugo MONTAL <hugo.montal@continental-corporation.com>
+Date: Fri, 27 Oct 2023 15:42:50 +0200
+Subject: [PATCH] Move ddr end
+
+---
+ plat/nxp/s32/include/s32_platform_def.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/plat/nxp/s32/include/s32_platform_def.h b/plat/nxp/s32/include/s32_platform_def.h
+index ce568fb..c70ce25 100644
+--- a/plat/nxp/s32/include/s32_platform_def.h
++++ b/plat/nxp/s32/include/s32_platform_def.h
+@@ -91,7 +91,7 @@
+ #define S32_SRAM_END		(S32_SRAM_BASE + S32_SRAM_SIZE)
+ 
+ /* Top of the first 2GB bank of physical memory */
+-#define S32_DDR0_END		0xffffffff
++#define S32_DDR0_END		0xdfffffff
+ 
+ /* Note: depending on the compiler optimization level, this may or may not be
+  * enough to prevent overflowing onto the adjacent SRAM image. Handle with care,
+-- 
+2.42.0
+

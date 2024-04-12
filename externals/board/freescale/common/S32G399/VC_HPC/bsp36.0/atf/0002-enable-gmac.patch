@@ -1,0 +1,34 @@
+From 0f97445a09823734a60607d3313d618cc2eec613 Mon Sep 17 00:00:00 2001
+From: Hugo MONTAL <hugo.montal@continental-corporation.com>
+Date: Fri, 13 Oct 2023 18:04:16 +0200
+Subject: [PATCH] Add GMAC and SERDES
+
+---
+ fdts/s32cc.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fdts/s32cc.dtsi b/fdts/s32cc.dtsi
+index 71b785c..3e0e4b3 100644
+--- a/fdts/s32cc.dtsi
++++ b/fdts/s32cc.dtsi
+@@ -829,7 +829,7 @@
+ 			interrupt-names = "macirq";
+ 			tx-fifo-depth = <20480>;
+ 			rx-fifo-depth = <20480>;
+-			status = "disabled";
++			status = "okay";
+ 			phy-names = "gmac_xpcs";
+ 			phys = <&serdes0 PHY_TYPE_XPCS 0 0>;
+ 			dma-coherent;
+@@ -890,7 +890,7 @@
+ 
+ 			nvmem-cell-names = "serdes_presence", "pcie_variant";
+ 			nvmem-cells = <&serdes_presence>, <&pcie_dev_id>;
+-			status = "disabled";
++			status = "okay";
+ 		};
+ 
+ 		serdes0: serdes@40480000 {
+-- 
+2.42.0
+

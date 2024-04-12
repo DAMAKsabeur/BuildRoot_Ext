@@ -1,0 +1,74 @@
+From c784308a58d587bdf096888e51ce3f27b9de387c Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Wed, 12 Apr 2023 13:04:47 +0800
+Subject: [PATCH 1/1] add mem rw
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ plat/nxp/s32/s32_bl2_el3.c                    | 4 ++++
+ plat/nxp/s32/s32_bl31.c                       | 4 ++++
+ plat/nxp/s32/s32g/include/s32g_platform_def.h | 6 +++---
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+ mode change 100644 => 100755 plat/nxp/s32/s32_bl2_el3.c
+ mode change 100644 => 100755 plat/nxp/s32/s32_bl31.c
+
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+old mode 100644
+new mode 100755
+index d14339f..f3c5e67
+--- a/plat/nxp/s32/s32_bl2_el3.c
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -189,6 +189,10 @@ static mmap_region_t s32_mmap[] = {
+ 	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
+ 			 MT_MEMORY | MT_RW | MT_SECURE),
+ #endif
++	MAP_REGION_FLAT(HPCGEN2_SRAM_BL2_LOG_START_ADDRESS, HPCGEN2_SRAM_BL2_LOG_SIZE,
++			  MT_MEMORY | MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(HPCGEN2_SRAM_U_BOOT_LOG_START_ADDRESS, HPCGEN2_SRAM_U_BOOT_LOG_SIZE,
++			  MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32_UART_BASE, S32_UART_SIZE,
+ 			MT_DEVICE | MT_RW | MT_NS),
+ 	MAP_REGION_FLAT(S32_MC_ME_BASE_ADDR, S32_MC_ME_SIZE,
+diff --git a/plat/nxp/s32/s32_bl31.c b/plat/nxp/s32/s32_bl31.c
+old mode 100644
+new mode 100755
+index 56fbcfa..0e1b224
+--- a/plat/nxp/s32/s32_bl31.c
++++ b/plat/nxp/s32/s32_bl31.c
+@@ -33,6 +33,10 @@ static const mmap_region_t s32_mmap[] = {
+ 	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
+ 			 MT_MEMORY | MT_RW | MT_SECURE),
+ #endif
++	MAP_REGION_FLAT(HPCGEN2_SRAM_BL2_LOG_START_ADDRESS, HPCGEN2_SRAM_BL2_LOG_SIZE,
++			  MT_MEMORY | MT_RW | MT_SECURE),
++	MAP_REGION_FLAT(HPCGEN2_SRAM_U_BOOT_LOG_START_ADDRESS, HPCGEN2_SRAM_U_BOOT_LOG_SIZE,
++			  MT_MEMORY | MT_RW | MT_SECURE),
+ 	MAP_REGION_FLAT(S32_UART_BASE, S32_UART_SIZE,
+ 			MT_DEVICE | MT_RW | MT_NS),
+ 	MAP_REGION_FLAT(S32GEN1_GIC_BASE, S32GEN1_GIC_SIZE,
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index 9b76d88..43b5375 100755
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -60,16 +60,16 @@
+
+ #if defined IMAGE_BL31
+ /* To limit usage, keep these in sync with sizeof(s32_mmap) */
+-#define MAX_MMAP_REGIONS		16
++#define MAX_MMAP_REGIONS		(16 + 2)
+ #define MAX_XLAT_TABLES			15
+ #endif
+
+ #if defined IMAGE_BL2
+ #if (ERRATA_S32_050543 == 1)
+-#define MAX_MMAP_REGIONS        18
++#define MAX_MMAP_REGIONS        (18 + 2)
+ #define MAX_XLAT_TABLES			27
+ #else
+-#define MAX_MMAP_REGIONS		17
++#define MAX_MMAP_REGIONS		(17 + 2)
+ #define MAX_XLAT_TABLES			26
+ #endif
+ #endif /* IMAGE_BL2 */
+--
+2.35.1

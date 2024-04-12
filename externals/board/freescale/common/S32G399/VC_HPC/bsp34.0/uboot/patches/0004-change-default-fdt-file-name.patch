@@ -1,0 +1,61 @@
+From 47b14e0bb8ddd7cdde2ad4a39ea6a55ba52d2b19 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Mon, 20 Mar 2023 13:21:38 +0800
+Subject: [PATCH 1/1] change default fdt file name
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ include/configs/s32g.h        |  2 +-
+ include/configs/s32g3xxaevb.h | 13 ++++++++++++-
+ 2 files changed, 13 insertions(+), 2 deletions(-)
+ mode change 100644 => 100755 include/configs/s32g.h
+ mode change 100644 => 100755 include/configs/s32g3xxaevb.h
+
+diff --git a/include/configs/s32g.h b/include/configs/s32g.h
+old mode 100644
+new mode 100755
+index 990e476b6f..7005c27daf
+--- a/include/configs/s32g.h
++++ b/include/configs/s32g.h
+@@ -14,7 +14,7 @@
+ 	"pfeaddr=00:01:be:be:ef:11\0" \
+ 	"pfe1addr=00:01:be:be:ef:22\0" \
+ 	"pfe2addr=00:01:be:be:ef:33\0" \
+-	"ethact=eth_pfeng\0" \
++	"ethact=eth_eqos\0" \
+ 	"pfengemac=" PFENG_EMAC "\0"
+ #  define PFE_INIT_CMD "pfeng stop; "
+ #else
+diff --git a/include/configs/s32g3xxaevb.h b/include/configs/s32g3xxaevb.h
+old mode 100644
+new mode 100755
+index 649fe58a54..99e67c03ac
+--- a/include/configs/s32g3xxaevb.h
++++ b/include/configs/s32g3xxaevb.h
+@@ -9,11 +9,22 @@
+ 
+ #define EXTRA_BOOTCOMMAND		PFE_INIT_CMD
+ #define EXTRA_BOOT_ARGS			PFE_EXTRA_BOOT_ARGS
++
++
++#if defined(CONFIG_TARGET_S32GEN1_HPER_GEN2)
++#define FDT_FILE			"hper_gen2.dtb"
++#elif defined(CONFIG_TARGET_S32G3XXAEVB)
+ #define FDT_FILE			"s32g3xxa-evb.dtb"
++#endif
+ 
+ #ifdef CONFIG_FSL_PFENG
+-#  define PFENG_MODE			"enable,sgmii,sgmii,rgmii"
++#ifdef CONFIG_TARGET_S32GEN1_HPER_GEN2
++#  define PFENG_MODE			"enable,sgmii,rgmii,sgmii"
+ #  define PFENG_EMAC			"0"
++#elif defined(CONFIG_TARGET_S32G3XXAEVB)
++#  define PFENG_MODE			"enable,none,rgmii,rgmii"
++#  define PFENG_EMAC			"1"
++#endif
+ #endif
+ 
+ #if defined(CONFIG_USB)
+-- 
+2.35.1
+

@@ -1,0 +1,93 @@
+From 12062af08ddd7ab50ef8b15bf49fdaf057f34440 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Tue, 11 Apr 2023 00:14:31 +0800
+Subject: [PATCH 1/1] add atf time stage
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ bl2/bl2_main.c         | 4 ++++
+ bl31/bl31_main.c       | 4 ++++
+ lib/libc/libc.mk       | 1 +
+ 4 files changed, 9 insertions(+)
+ mode change 100644 => 100755 bl2/bl2_main.c
+ mode change 100644 => 100755 bl31/bl31_main.c
+ mode change 100644 => 100755 lib/libc/libc.mk
+
+diff --git a/bl2/bl2_main.c b/bl2/bl2_main.c
+old mode 100644
+new mode 100755
+index 203e1d4..7753d4f
+--- a/bl2/bl2_main.c
++++ b/bl2/bl2_main.c
+@@ -21,6 +21,7 @@
+ #include <plat/common/platform.h>
+
+ #include "bl2_private.h"
++#include <lib/perf_boot_info.h>
+
+ #ifdef __aarch64__
+ #define NEXT_IMAGE	"BL31"
+@@ -82,6 +83,8 @@ void bl2_main(void)
+ {
+ 	entry_point_info_t *next_bl_ep_info;
+
++	set_boot_stage(BS_BL2_ENTRY);
++
+ 	NOTICE("BL2: %s\n", version_string);
+ 	NOTICE("BL2: %s\n", build_message);
+
+@@ -137,6 +140,7 @@ void bl2_main(void)
+ 	smc(BL1_SMC_RUN_IMAGE, (unsigned long)next_bl_ep_info, 0, 0, 0, 0, 0, 0);
+ #else /* if BL2_AT_EL3 */
+ 	NOTICE("BL2: Booting " NEXT_IMAGE "\n");
++	set_boot_stage(BS_BL2_EXIT);
+ 	print_entry_point_info(next_bl_ep_info);
+ 	console_flush();
+
+diff --git a/bl31/bl31_main.c b/bl31/bl31_main.c
+old mode 100644
+new mode 100755
+index 44bf32c..4750949
+--- a/bl31/bl31_main.c
++++ b/bl31/bl31_main.c
+@@ -22,6 +22,8 @@
+ #include <plat/common/platform.h>
+ #include <services/std_svc.h>
+
++#include <lib/perf_boot_info.h>
++
+ #if ENABLE_RUNTIME_INSTRUMENTATION
+ PMF_REGISTER_SERVICE_SMC(rt_instr_svc, PMF_RT_INSTR_SVC_ID,
+ 	RT_INSTR_TOTAL_IDS, PMF_STORE_ENABLE)
+@@ -104,6 +106,7 @@ void bl31_setup(u_register_t arg0, u_register_t arg1, u_register_t arg2,
+  ******************************************************************************/
+ void bl31_main(void)
+ {
++	set_boot_stage(BS_BL31_ENTRY);
+ 	NOTICE("BL31: %s\n", version_string);
+ 	NOTICE("BL31: %s\n", build_message);
+
+@@ -156,6 +159,7 @@ void bl31_main(void)
+ 	bl31_prepare_next_image_entry();
+
+ 	console_flush();
++	set_boot_stage(BS_BL31_EXIT);
+
+ 	/*
+ 	 * Perform any platform specific runtime setup prior to cold boot exit
+diff --git a/lib/libc/libc.mk b/lib/libc/libc.mk
+old mode 100644
+new mode 100755
+index b75d09c..d8e31c2
+--- a/lib/libc/libc.mk
++++ b/lib/libc/libc.mk
+@@ -30,6 +30,7 @@ LIBC_SRCS	:=	$(addprefix lib/libc/,		\
+ 			strtoul.c			\
+ 			strtoll.c			\
+ 			strtoull.c			\
++			perf_boot_info.c    \
+ 			strtol.c)
+
+ ifeq (${ARCH},aarch64)
+--
+2.35.1

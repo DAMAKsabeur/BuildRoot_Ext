@@ -1,0 +1,4 @@
+config BR2_PACKAGE_HOST_BOOT_IMAGE_GENERATION
+	bool "boot_image_generation engine"
+	help
+	  boot_image_generation engine for S32G2 HW

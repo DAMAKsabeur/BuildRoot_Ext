@@ -1,0 +1,49 @@
+From a784898cc24f973f5619437f578f855f2564d3dc Mon Sep 17 00:00:00 2001
+From: "Damak Sabeur (uic56995)" <sabeur damak>
+Date: Wed, 12 Jul 2023 18:43:59 +0200
+Subject: [PATCH] fip.s32 generation skip
+
+---
+ Makefile                   | 4 ----
+ plat/nxp/s32/s32_common.mk | 4 ++++
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index e7194a7..49fb558 100644
+--- a/Makefile
++++ b/Makefile
+@@ -376,10 +376,6 @@ WARNINGS	+=		-Wshift-overflow -Wshift-sign-overflow \
+ 				-Wlogical-op-parentheses
+ endif
+
+-ifneq (${E},0)
+-ERRORS := -Werror
+-endif
+-
+ CPPFLAGS		=	${DEFINES} ${INCLUDES} ${MBEDTLS_INC} -nostdinc	\
+ 				$(ERRORS) $(WARNINGS)
+ ASFLAGS			+=	$(CPPFLAGS) $(ASFLAGS_$(ARCH))			\
+diff --git a/plat/nxp/s32/s32_common.mk b/plat/nxp/s32/s32_common.mk
+index cf0e4dc..7f56fd1 100644
+--- a/plat/nxp/s32/s32_common.mk
++++ b/plat/nxp/s32/s32_common.mk
+@@ -412,6 +412,9 @@ $(eval $(call add_define,BL2_BASE))
+
+ all: call_mkimage
+ call_mkimage: add_to_fip ${MKIMAGE_FIP_CONF_FILE} ${FIP_HDR_SIZE_FILE} ${BL2_W_DTB_SIZE_FILE} ${DTB_SIZE_FILE}
++ifneq (${HPER_GEN2_G3},)
++	${ECHO} " HPER_GEN2_G3 Skip MKIMAGE s32 generation"
++else
+ 	${ECHO} "  MKIMAGE ${BUILD_PLAT}/fip.s32"
+ 	${Q}FIP_HDR_SIZE=$$(cat ${FIP_HDR_SIZE_FILE}); \
+ 	BL2_W_DTB_SIZE=$$(cat ${BL2_W_DTB_SIZE_FILE}); \
+@@ -419,6 +422,7 @@ call_mkimage: add_to_fip ${MKIMAGE_FIP_CONF_FILE} ${FIP_HDR_SIZE_FILE} ${BL2_W_D
+ 	LOAD_ADDRESS=0x$$($(call hexbc, ${BL2_BASE}, -, $${FIP_HDR_SIZE}, -, $${DTB_SIZE})); \
+ 	$(call run_mkimage, ${BL2_BASE}, $${LOAD_ADDRESS}, ${MKIMAGE_FIP_CONF_FILE}, ${BUILD_PLAT}/${FIP_NAME}, ${BUILD_PLAT}/fip.s32)
+ 	${ECHO} "Generated ${BUILD_PLAT}/fip.s32 successfully"
++endif
+
+ # If BL32_EXTRA1 option is present, include the binary it is pointing to
+ # in the FIP image
+--
+2.25.1

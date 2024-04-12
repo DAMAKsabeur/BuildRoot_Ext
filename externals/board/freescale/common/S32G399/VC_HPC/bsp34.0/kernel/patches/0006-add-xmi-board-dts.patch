@@ -1,0 +1,1325 @@
+From 8b17966930589912696500c99e2472ee9b82f41f Mon Sep 17 00:00:00 2001
+From: "Damak Sabeur (uic56995)" <sabeur damak>
+Date: Wed, 12 Jul 2023 19:31:11 +0200
+Subject: [PATCH] add xmi board dts
+
+---
+ .../boot/dts/continental/xmi_g3_hper_gen2.dts |  28 +
+ .../dts/continental/xmi_g3_hper_gen2.dtsi     | 659 ++++++++++++++++++
+ .../continental/xmi_g3_hper_gen2_thermal.dts  |  28 +
+ .../continental/xmi_g3_hper_gen2_thermal.dtsi | 567 +++++++++++++++
+ 4 files changed, 1282 insertions(+)
+ create mode 100755 arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dts
+ create mode 100755 arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dtsi
+ create mode 100755 arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dts
+ create mode 100755 arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dtsi
+
+diff --git a/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dts b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dts
+new file mode 100755
+index 000000000..9f02894f2
+--- /dev/null
++++ b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dts
+@@ -0,0 +1,28 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Copyright 2021 NXP
++ */
++
++/dts-v1/;
++#include "../freescale/s32g3.dtsi"
++#include "xmi_g3_hper_gen2.dtsi"
++/ {
++	model = "Freescale S32G399A";
++	compatible = "fsl,s32g399", "arm,vexpress";
++};
++
++&swt8 {
++	status = "okay";
++};
++
++&swt9 {
++	status = "okay";
++};
++
++&swt10 {
++	status = "okay";
++};
++
++&swt11 {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dtsi b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dtsi
+new file mode 100755
+index 000000000..6485327fc
+--- /dev/null
++++ b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2.dtsi
+@@ -0,0 +1,659 @@
++/*
++ * Copyright 2019-2020 NXP
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/s32cc-pinfunc.h>
++/ {
++	model = "NXP S32G3XXX-EVB";
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	usbphynop: usbphynop {
++		compatible = "usb-nop-xceiv";
++		#phy-cells = <0>;
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&llce_can0 {
++	status = "disabled";
++};
++
++&llce_can1 {
++	status = "disabled";
++};
++
++&llce_can2 {
++	status = "disabled";
++};
++
++&llce_can3 {
++	status = "disabled";
++};
++
++&llce_can4 {
++	status = "disabled";
++};
++
++&llce_can5 {
++	status = "disabled";
++};
++
++&llce_can6 {
++	status = "disabled";
++};
++
++&llce_can7 {
++	status = "disabled";
++};
++
++&llce_can8 {
++	status = "disabled";
++};
++
++&llce_can9 {
++	status = "disabled";
++};
++
++&llce_can10 {
++	status = "disabled";
++};
++
++&llce_can11 {
++	status = "disabled";
++};
++
++&llce_can12 {
++	status = "disabled";
++};
++
++&llce_can13 {
++	status = "disabled";
++};
++
++&llce_can14 {
++	status = "disabled";
++};
++
++&llce_can15 {
++	status = "disabled";
++};
++
++&llce {
++       status = "disabled";
++};
++
++&llce_mb {
++       status = "disabled";
++};
++
++&llce_can_logger0 {
++       status = "disabled";
++};
++
++&llce_can_logger1 {
++       status = "disabled";
++};
++
++&llce_can_logger2 {
++       status = "disabled";
++};
++
++&llce_can_logger3 {
++       status = "disabled";
++};
++
++&llce_can_logger4 {
++       status = "disabled";
++};
++
++&llce_can_logger5 {
++       status = "disabled";
++};
++
++&llce_can_logger6 {
++       status = "disabled";
++};
++
++&llce_can_logger7 {
++       status = "disabled";
++};
++
++&llce_can_logger8 {
++       status = "disabled";
++};
++
++&llce_can_logger9 {
++       status = "disabled";
++};
++
++&llce_can_logger10 {
++       status = "disabled";
++};
++
++&llce_can_logger11 {
++       status = "disabled";
++};
++
++&llce_can_logger12 {
++       status = "disabled";
++};
++
++&llce_can_logger13 {
++       status = "disabled";
++};
++
++&llce_can_logger14 {
++       status = "disabled";
++};
++
++&llce_can_logger15 {
++       status = "disabled";
++};
++
++&uart1 {
++       status = "disabled";
++};
++
++&uart2 {
++       status = "disabled";
++};
++
++&adc0 {
++       status = "disabled";
++};
++
++&adc1 {
++       status = "disabled";
++};
++
++&qspi {
++	status = "okay";
++
++	mx25uw51245g@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "jedec,spi-nor";
++		spi-max-frequency = <133333333>;
++		spi-tx-bus-width = <8>;
++		spi-rx-bus-width = <8>;
++		reg = <0>;
++	};
++};
++
++&serdes0 {
++	status = "disabled"; 
++};
++
++&serdes1 {
++	status = "disabled"; 
++};
++
++&gmac0 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&gmac0rgmiic_pins>, <&gmac0mdioc_pins>;
++	phy-handle = <&gmac0_mdio_c_phy4>;
++	phy-mode = "rgmii";
++	fixed-link {
++		speed = <1000>;
++		full-duplex;
++    };
++};
++
++&gmac0_mdio {
++	/* AQR107 on S32RGV-VNP-PLAT */
++	gmac_mdio_c_phy1: ethernet-phy@1 {
++		compatible = "ethernet-phy-ieee802.3-c45";
++		reg = <1>;
++	};
++	/* KSZ9031RNX on S32G-PROCEVB-S/S32G-PROCEVB3-S */
++	gmac0_mdio_c_phy4: ethernet-phy@4 {
++		reg = <4>;
++	};
++	/* KSZ9031RNX on S32RGV-VNP-PLAT */
++	gmac_mdio_c_phy5: ethernet-phy@5 {
++		status = "disabled"; /* blocked by USB by default */
++		reg = <5>;
++	};
++};
++
++&pfe_mdio1 {
++        status = "okay";
++        ///pinctrl-names = "default";
++        ///pinctrl-0 = <&pinctrl0_pfe1_mdio_c>, <&pinctrl1_pfe1_mdio_c>;
++
++        /* PFE_MAC1 => RGMII ==> PHY0/DP83TC812R */
++        /* TI DP83TC812R PHY 0 */
++        mdio_phy0: ethernet-phy@0 {
++                compatible = "ethernet-phy-ieee802.3-c22";
++                #address-cells = <1>;
++                #size-cells = <0>;
++                reg = <0>;
++        };
++};
++
++&pfe_mdio2 {
++	status = "disabled";
++};
++
++&pfe_netif0 {
++        status = "okay";
++	phy-mode = "sgmii";
++        fixed-link {
++                speed = <2500>;
++                full-duplex;
++        };
++};
++
++
++&pfe_netif1 {
++        /* PFE_MAC1 => RGMII ==> PHY0/DP83TC812R */
++        status = "okay";
++        ///fsl,pfeng-hif-channel = <1>;
++        phy-handle = <&mdio_phy0>;
++        ///pinctrl-names = "default";
++        ///pinctrl-0 = <&pinctrl0_pfe1_rgmii_c>, <&pinctrl1_pfe1_rgmii_c>;
++        fixed-link {
++                speed = <1000>;
++                full-duplex;
++        };
++
++};
++
++&pfe_netif2 {
++        status = "okay";
++        fsl,pfeng-hif-channel = <2>;
++};
++
++
++&generic_timer {
++	clock-frequency = <5000000>;
++};
++
++&usdhc0 {
++	/delete-property/ no-1-8-v;
++	non-removable;
++	fixed-emmc-driver-type = <4>;
++	status = "okay";
++};
++
++&pinctrl {
++	pinctrl0_dspi0: spi0 {
++		spi0_pin0 {
++			pinmux =<S32CC_PINMUX(14, FUNC0)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++		spi0_pin1 {
++			pinmux = <S32CC_PINMUX(15, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi0_pin2 {
++			pinmux =<S32CC_PINMUX(13, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi0_pin3 {
++			pinmux =<S32CC_PINMUX(25, FUNC5)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};		
++		spi0_pin4 {
++			pinmux = <S32CC_PINMUX(982, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++	};
++    //SPI3 connected to China TTMU3H
++    pinctrl0_dspi3: spi3 {
++		spi3_pin0{
++			pinmux = <S32CC_PINMUX(63, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi3_pin1{
++			pinmux = <S32CC_PINMUX(188, FUNC5)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi3_pin2{
++			pinmux = <S32CC_PINMUX(997, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++		spi3_pin3{
++			pinmux = <S32CC_PINMUX(189, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++    };
++	pinctrl0_pfe1_mdio_c: pfe_mdio1 {
++		pfe1mdioc_grp0 {
++			pinmux = <S32CC_PINMUX(60, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1mdioc_grp1 {
++			pinmux = <S32CC_PINMUX(61, FUNC2)>;
++			output-enable;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1mdioc_grp2 {
++			pinmux = <S32CC_PINMUX(857, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++		
++	pinctrl0_pfe1_rgmii_c: pfe_logif1 {
++		pfe1rgmiic_grp0 {
++			pinmux = <S32CC_PINMUX(66, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-up;
++		};
++
++		pfe1rgmiic_grp1 {
++			pinmux = <S32CC_PINMUX(866, FUNC2)>,
++				 <S32CC_PINMUX(859, FUNC2)>,
++				 <S32CC_PINMUX(865, FUNC2)>,
++				 <S32CC_PINMUX(861, FUNC2)>,
++				 <S32CC_PINMUX(862, FUNC2)>,
++				 <S32CC_PINMUX(863, FUNC2)>,
++				 <S32CC_PINMUX(864, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1rgmiic_grp2 {
++			pinmux = <S32CC_PINMUX(67, FUNC2)>,
++				 <S32CC_PINMUX(68, FUNC2)>,
++				 <S32CC_PINMUX(69, FUNC2)>,
++				 <S32CC_PINMUX(70, FUNC2)>,
++				 <S32CC_PINMUX(73, FUNC2)>,
++				 <S32CC_PINMUX(74, FUNC2)>,
++				 <S32CC_PINMUX(75, FUNC2)>,
++				 <S32CC_PINMUX(76, FUNC2)>,
++				 <S32CC_PINMUX(77, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1rgmiic_grp3 {
++			pinmux = <S32CC_PINMUX(71, FUNC3)>,
++					<S32CC_PINMUX(72, FUNC3)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++	};
++	gmac0mdioc_pins: gmac0mdioc {
++		gmac0mdioc_grp0 {
++			pinmux = <S32CC_PINMUX(60, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0mdioc_grp1 {
++			pinmux = <S32CC_PINMUX(61, FUNC1)>;
++			output-enable;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0mdioc_grp2 {
++			pinmux = <S32CC_PINMUX(527, FUNC2)>;
++		};
++
++	};
++
++	gmac0rgmiic_pins: gmac0rgmiic {
++		gmac0rgmiic_grp0 {
++			pinmux = <S32CC_PINMUX(66, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-up;
++		};
++
++		gmac0rgmiic_grp1 {
++			pinmux = <S32CC_PINMUX(538, FUNC2)>,
++				 <S32CC_PINMUX(529, FUNC2)>,
++				 <S32CC_PINMUX(530, FUNC2)>,
++				 <S32CC_PINMUX(531, FUNC2)>,
++				 <S32CC_PINMUX(532, FUNC2)>,
++				 <S32CC_PINMUX(533, FUNC2)>,
++				 <S32CC_PINMUX(534, FUNC2)>;
++		};
++
++		gmac0rgmiic_grp2 {
++			pinmux = <S32CC_PINMUX(67, FUNC1)>,
++				 <S32CC_PINMUX(68, FUNC1)>,
++				 <S32CC_PINMUX(69, FUNC1)>,
++				 <S32CC_PINMUX(70, FUNC1)>,
++				 <S32CC_PINMUX(71, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0rgmiic_grp3 {
++			pinmux = <S32CC_PINMUX(72, FUNC0)>,
++				 <S32CC_PINMUX(73, FUNC0)>,
++				 <S32CC_PINMUX(74, FUNC0)>,
++				 <S32CC_PINMUX(75, FUNC0)>,
++				 <S32CC_PINMUX(76, FUNC0)>,
++				 <S32CC_PINMUX(77, FUNC0)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0rgmiic_grp4 {
++			pinmux = <S32CC_PINMUX(28, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			output-high;
++			bias-pull-up;
++		};
++	};
++	pinctrl_gpio0: gpiogrp0 {
++		gpiogrp0_pin0 {
++			pinmux = <S32CC_PINMUX(41, FUNC6)>,
++					<S32CC_PINMUX(42, FUNC0)>,
++					<S32CC_PINMUX(46, FUNC1)>,
++					<S32CC_PINMUX(47, FUNC1)>,
++					<S32CC_PINMUX(48, FUNC1)>,
++					<S32CC_PINMUX(49, FUNC1)>,
++					<S32CC_PINMUX(50, FUNC1)>,
++					<S32CC_PINMUX(51, FUNC1)>,
++					<S32CC_PINMUX(52, FUNC1)>,
++					<S32CC_PINMUX(53, FUNC1)>,
++					<S32CC_PINMUX(54, FUNC1)>,
++					<S32CC_PINMUX(55, FUNC1)>,
++					<S32CC_PINMUX(56, FUNC1)>,
++					<S32CC_PINMUX(58, FUNC1)>,
++					<S32CC_PINMUX(64, FUNC0)>,
++					<S32CC_PINMUX(65, FUNC0)>,
++					<S32CC_PINMUX(81, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++
++	pinctrl1_pwm: pwm {
++		pwm_pin0{
++			pinmux = <S32CC_PINMUX(181, FUNC3)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_150MHZ>;
++		};
++	};
++
++	pinctrl_gpio1: gpiogrp1 {
++		gpiogrp1_pin0 {
++			pinmux = <S32CC_PINMUX(186, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++};
++
++&edma0 {
++	status = "okay";
++};
++
++&edma1 {
++	status = "okay";
++};
++
++&spi0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl0_dspi0>;
++	#address-cells = <1>;
++	#size-cells = <0>;
++	status = "disabled";
++};
++
++&usbotg {
++	status = "disabled";
++};
++
++&spi3 {
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl0_dspi3>;
++	spi-num-chipselects = <1>;
++
++        ///spi-extended-mode;
++        status = "okay";
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        TTMU3H: spidev@0 {
++                ////compatible = "linux,spidev";
++		compatible = "rohm,dh2228fv";
++                spi-max-frequency = <35000000>;
++		///spi-cpol
++	        spi-cpha;
++                reg = <0>;
++                //fsl,spi-cs-sck-delay = <100>;
++                //fsl,spi-sck-cs-delay = <100>;
++        };
++};
++
++&pcie0 {
++       status = "disabled";
++};
++
++&pcie1 {
++       status = "disabled";
++};
++
++
++&can0 {
++       status = "disabled";
++};
++
++&can1 {
++       status = "disabled";
++};
++
++&can2 {
++       status = "disabled";
++};
++
++
++&can3 {
++       status = "disabled";
++};
++
++
++&pit0 {
++       status = "disabled";
++};
++
++&pit1 {
++       status = "disabled";
++};
++
++&pwm0 {
++	status = "disabled";
++};
++
++&pwm1 {
++	status = "disabled";
++};
++
++&can0 {
++       status = "disabled";
++};
++
++&can1 {
++       status = "disabled";
++};
++
++&can2 {
++       status = "disabled";
++};
++
++
++&can3 {
++       status = "disabled";
++};
++
++
++&pit0 {
++       status = "disabled";
++};
++
++&pit1 {
++       status = "disabled";
++};
++
++&usbotg {
++        status = "disabled";
++};
++
++&usbmisc {
++        status = "disabled";
++};
++
++&swt8 {
++        status = "disabled";
++};
++
++&swt9 {
++        status = "disabled";
++};
++
++&swt10 {
++        status = "disabled";
++};
++
++&swt11 {
++        status = "disabled";
++};
++
++/*
++/delete-node/ &can0_pins;
++/delete-node/ &can2_pins;
++/delete-node/ &can3_pins;
++/delete-node/ &gmac0mdioc_pins;
++/delete-node/ &gmacrgmiia_pins;
++*/
++
+diff --git a/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dts b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dts
+new file mode 100755
+index 000000000..b2c987f9c
+--- /dev/null
++++ b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dts
+@@ -0,0 +1,28 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * Copyright 2021 NXP
++ */
++
++/dts-v1/;
++#include "../freescale/s32g3.dtsi"
++#include "xmi_g3_hper_gen2_thermal.dtsi"
++/ {
++	model = "Freescale S32G399A";
++	compatible = "fsl,s32g399", "arm,vexpress";
++};
++
++&swt8 {
++	status = "okay";
++};
++
++&swt9 {
++	status = "okay";
++};
++
++&swt10 {
++	status = "okay";
++};
++
++&swt11 {
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dtsi b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dtsi
+new file mode 100755
+index 000000000..3af7d13e9
+--- /dev/null
++++ b/arch/arm64/boot/dts/continental/xmi_g3_hper_gen2_thermal.dtsi
+@@ -0,0 +1,567 @@
++/*
++ * Copyright 2019-2020 NXP
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ */
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/s32cc-pinfunc.h>
++/ {
++	model = "NXP S32G3XXX-EVB";
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	usbphynop: usbphynop {
++		compatible = "usb-nop-xceiv";
++		#phy-cells = <0>;
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&llce_can0 {
++	status = "disabled";
++};
++
++&llce_can1 {
++	status = "disabled";
++};
++
++&llce_can2 {
++	status = "disabled";
++};
++
++&llce_can3 {
++	status = "disabled";
++};
++
++&llce_can4 {
++	status = "disabled";
++};
++
++&llce_can5 {
++	status = "disabled";
++};
++
++&llce_can6 {
++	status = "disabled";
++};
++
++&llce_can7 {
++	status = "disabled";
++};
++
++&llce_can8 {
++	status = "disabled";
++};
++
++&llce_can9 {
++	status = "disabled";
++};
++
++&llce_can10 {
++	status = "disabled";
++};
++
++&llce_can11 {
++	status = "disabled";
++};
++
++&llce_can12 {
++	status = "disabled";
++};
++
++&llce_can13 {
++	status = "disabled";
++};
++
++&llce_can14 {
++	status = "disabled";
++};
++
++&llce_can15 {
++	status = "disabled";
++};
++
++
++&qspi {
++	status = "okay";
++
++	mx25uw51245g@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "jedec,spi-nor";
++		spi-max-frequency = <100000000>;
++		spi-tx-bus-width = <8>;
++		spi-rx-bus-width = <8>;
++		reg = <0>;
++	};
++};
++
++&serdes0 {
++	status = "okay"; 
++};
++
++&gmac0 {
++	status = "okay";
++	pinctrl-names = "default";
++	pinctrl-0 = <&gmac0rgmiic_pins>, <&gmac0mdioc_pins>;
++	phy-handle = <&gmac0_mdio_c_phy4>;
++	phy-mode = "rgmii";
++	fixed-link {
++		speed = <1000>;
++		full-duplex;
++    };
++};
++
++&gmac0_mdio {
++	/* AQR107 on S32RGV-VNP-PLAT */
++	gmac_mdio_c_phy1: ethernet-phy@1 {
++		compatible = "ethernet-phy-ieee802.3-c45";
++		reg = <1>;
++	};
++	/* KSZ9031RNX on S32G-PROCEVB-S/S32G-PROCEVB3-S */
++	gmac0_mdio_c_phy4: ethernet-phy@4 {
++		reg = <4>;
++	};
++	/* KSZ9031RNX on S32RGV-VNP-PLAT */
++	gmac_mdio_c_phy5: ethernet-phy@5 {
++		status = "disabled"; /* blocked by USB by default */
++		reg = <5>;
++	};
++};
++
++&pfe_mdio1 {
++        status = "okay";
++        ///pinctrl-names = "default";
++        ///pinctrl-0 = <&pinctrl0_pfe1_mdio_c>, <&pinctrl1_pfe1_mdio_c>;
++
++        /* PFE_MAC1 => RGMII ==> PHY0/DP83TC812R */
++        /* TI DP83TC812R PHY 0 */
++        mdio_phy0: ethernet-phy@0 {
++                compatible = "ethernet-phy-ieee802.3-c22";
++                #address-cells = <1>;
++                #size-cells = <0>;
++                reg = <0>;
++        };
++};
++
++&pfe_mdio2 {
++	status = "disabled";
++};
++
++&pfe_netif0 {
++        status = "okay";
++	phy-mode = "sgmii";
++        fixed-link {
++                speed = <2500>;
++                full-duplex;
++        };
++};
++
++
++&pfe_netif1 {
++        /* PFE_MAC1 => RGMII ==> PHY0/DP83TC812R */
++        status = "okay";
++        ///fsl,pfeng-hif-channel = <1>;
++        phy-handle = <&mdio_phy0>;
++        ///pinctrl-names = "default";
++        ///pinctrl-0 = <&pinctrl0_pfe1_rgmii_c>, <&pinctrl1_pfe1_rgmii_c>;
++        fixed-link {
++                speed = <1000>;
++                full-duplex;
++        };
++
++};
++
++&pfe_netif2 {
++        status = "okay";
++        fsl,pfeng-hif-channel = <2>;
++};
++
++
++&generic_timer {
++	clock-frequency = <5000000>;
++};
++
++&usdhc0 {
++	/delete-property/ no-1-8-v;
++	non-removable;
++	fixed-emmc-driver-type = <4>;
++	status = "okay";
++};
++
++&pinctrl {
++	pinctrl0_dspi0: spi0 {
++		spi0_pin0 {
++			pinmux =<S32CC_PINMUX(14, FUNC0)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++		spi0_pin1 {
++			pinmux = <S32CC_PINMUX(15, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi0_pin2 {
++			pinmux =<S32CC_PINMUX(13, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi0_pin3 {
++			pinmux =<S32CC_PINMUX(25, FUNC5)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};		
++		spi0_pin4 {
++			pinmux = <S32CC_PINMUX(982, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++	};
++    //SPI3 connected to China TTMU3H
++    pinctrl0_dspi3: spi3 {
++		spi3_pin0{
++			pinmux = <S32CC_PINMUX(63, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi3_pin1{
++			pinmux = <S32CC_PINMUX(188, FUNC5)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++		spi3_pin2{
++			pinmux = <S32CC_PINMUX(997, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-down;
++		};
++		spi3_pin3{
++			pinmux = <S32CC_PINMUX(189, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++    };
++	pinctrl0_pfe1_mdio_c: pfe_mdio1 {
++		pfe1mdioc_grp0 {
++			pinmux = <S32CC_PINMUX(60, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1mdioc_grp1 {
++			pinmux = <S32CC_PINMUX(61, FUNC2)>;
++			output-enable;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1mdioc_grp2 {
++			pinmux = <S32CC_PINMUX(857, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++		
++	pinctrl0_pfe1_rgmii_c: pfe_logif1 {
++		pfe1rgmiic_grp0 {
++			pinmux = <S32CC_PINMUX(66, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-up;
++		};
++
++		pfe1rgmiic_grp1 {
++			pinmux = <S32CC_PINMUX(866, FUNC2)>,
++				 <S32CC_PINMUX(859, FUNC2)>,
++				 <S32CC_PINMUX(865, FUNC2)>,
++				 <S32CC_PINMUX(861, FUNC2)>,
++				 <S32CC_PINMUX(862, FUNC2)>,
++				 <S32CC_PINMUX(863, FUNC2)>,
++				 <S32CC_PINMUX(864, FUNC2)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1rgmiic_grp2 {
++			pinmux = <S32CC_PINMUX(67, FUNC2)>,
++				 <S32CC_PINMUX(68, FUNC2)>,
++				 <S32CC_PINMUX(69, FUNC2)>,
++				 <S32CC_PINMUX(70, FUNC2)>,
++				 <S32CC_PINMUX(73, FUNC2)>,
++				 <S32CC_PINMUX(74, FUNC2)>,
++				 <S32CC_PINMUX(75, FUNC2)>,
++				 <S32CC_PINMUX(76, FUNC2)>,
++				 <S32CC_PINMUX(77, FUNC2)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		pfe1rgmiic_grp3 {
++			pinmux = <S32CC_PINMUX(71, FUNC3)>,
++					<S32CC_PINMUX(72, FUNC3)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++	};
++	gmac0mdioc_pins: gmac0mdioc {
++		gmac0mdioc_grp0 {
++			pinmux = <S32CC_PINMUX(60, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0mdioc_grp1 {
++			pinmux = <S32CC_PINMUX(61, FUNC1)>;
++			output-enable;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0mdioc_grp2 {
++			pinmux = <S32CC_PINMUX(527, FUNC2)>;
++		};
++
++	};
++
++	gmac0rgmiic_pins: gmac0rgmiic {
++		gmac0rgmiic_grp0 {
++			pinmux = <S32CC_PINMUX(66, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			bias-pull-up;
++		};
++
++		gmac0rgmiic_grp1 {
++			pinmux = <S32CC_PINMUX(538, FUNC2)>,
++				 <S32CC_PINMUX(529, FUNC2)>,
++				 <S32CC_PINMUX(530, FUNC2)>,
++				 <S32CC_PINMUX(531, FUNC2)>,
++				 <S32CC_PINMUX(532, FUNC2)>,
++				 <S32CC_PINMUX(533, FUNC2)>,
++				 <S32CC_PINMUX(534, FUNC2)>;
++		};
++
++		gmac0rgmiic_grp2 {
++			pinmux = <S32CC_PINMUX(67, FUNC1)>,
++				 <S32CC_PINMUX(68, FUNC1)>,
++				 <S32CC_PINMUX(69, FUNC1)>,
++				 <S32CC_PINMUX(70, FUNC1)>,
++				 <S32CC_PINMUX(71, FUNC1)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0rgmiic_grp3 {
++			pinmux = <S32CC_PINMUX(72, FUNC0)>,
++				 <S32CC_PINMUX(73, FUNC0)>,
++				 <S32CC_PINMUX(74, FUNC0)>,
++				 <S32CC_PINMUX(75, FUNC0)>,
++				 <S32CC_PINMUX(76, FUNC0)>,
++				 <S32CC_PINMUX(77, FUNC0)>;
++			input-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++
++		gmac0rgmiic_grp4 {
++			pinmux = <S32CC_PINMUX(28, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++			output-high;
++			bias-pull-up;
++		};
++	};
++	pinctrl_gpio0: gpiogrp0 {
++		gpiogrp0_pin0 {
++			pinmux = <S32CC_PINMUX(41, FUNC6)>,
++					<S32CC_PINMUX(42, FUNC0)>,
++					<S32CC_PINMUX(46, FUNC1)>,
++					<S32CC_PINMUX(47, FUNC1)>,
++					<S32CC_PINMUX(48, FUNC1)>,
++					<S32CC_PINMUX(49, FUNC1)>,
++					<S32CC_PINMUX(50, FUNC1)>,
++					<S32CC_PINMUX(51, FUNC1)>,
++					<S32CC_PINMUX(52, FUNC1)>,
++					<S32CC_PINMUX(53, FUNC1)>,
++					<S32CC_PINMUX(54, FUNC1)>,
++					<S32CC_PINMUX(55, FUNC1)>,
++					<S32CC_PINMUX(56, FUNC1)>,
++					<S32CC_PINMUX(58, FUNC1)>,
++					<S32CC_PINMUX(64, FUNC0)>,
++					<S32CC_PINMUX(65, FUNC0)>,
++					<S32CC_PINMUX(81, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++
++	pinctrl1_pwm: pwm {
++		pwm_pin0{
++			pinmux = <S32CC_PINMUX(181, FUNC3)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_150MHZ>;
++		};
++	};
++
++	pinctrl_gpio1: gpiogrp1 {
++		gpiogrp1_pin0 {
++			pinmux = <S32CC_PINMUX(186, FUNC0)>;
++			output-enable;
++			slew-rate = <S32CC_SLEW_208MHZ>;
++		};
++	};
++};
++
++&edma0 {
++	status = "okay";
++};
++
++&edma1 {
++	status = "okay";
++};
++
++&spi0 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&pinctrl0_dspi0>;
++	#address-cells = <1>;
++	#size-cells = <0>;
++	status = "disabled";
++};
++
++&usbotg {
++	status = "disabled";
++};
++
++&spi3 {
++        pinctrl-names = "default";
++        pinctrl-0 = <&pinctrl0_dspi3>;
++	spi-num-chipselects = <1>;
++
++        ///spi-extended-mode;
++        status = "okay";
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        TTMU3H: spidev@0 {
++                ////compatible = "linux,spidev";
++		compatible = "rohm,dh2228fv";
++                spi-max-frequency = <35000000>;
++		///spi-cpol
++	        spi-cpha;
++                reg = <0>;
++                //fsl,spi-cs-sck-delay = <100>;
++                //fsl,spi-sck-cs-delay = <100>;
++        };
++};
++
++&pcie0 {
++       status = "disable";
++};
++
++&pcie1 {
++       status = "disable";
++};
++
++
++&can0 {
++       status = "disable";
++};
++
++&can1 {
++       status = "disable";
++};
++
++&can2 {
++       status = "disable";
++};
++
++
++&can3 {
++       status = "disable";
++};
++
++
++&pit0 {
++       status = "disable";
++};
++
++&pit1 {
++       status = "disable";
++};
++
++&pwm0 {
++	status = "disable";
++};
++
++&pwm1 {
++	status = "disable";
++};
++
++&can0 {
++       status = "disable";
++};
++
++&can1 {
++       status = "disable";
++};
++
++&can2 {
++       status = "disable";
++};
++
++
++&can3 {
++       status = "disable";
++};
++
++
++&pit0 {
++       status = "disable";
++};
++
++&pit1 {
++       status = "disable";
++};
++
++&usbotg {
++        status = "disable";
++};
++
++&usbmisc {
++        status = "disable";
++};
++
++&swt8 {
++        status = "disable";
++};
++
++&swt9 {
++        status = "disable";
++};
++
++&swt10 {
++        status = "disable";
++};
++
++&swt11 {
++        status = "disable";
++};
++
++/*
++/delete-node/ &can0_pins;
++/delete-node/ &can2_pins;
++/delete-node/ &can3_pins;
++/delete-node/ &gmac0mdioc_pins;
++/delete-node/ &gmacrgmiia_pins;
++*/
+-- 
+2.25.1
+

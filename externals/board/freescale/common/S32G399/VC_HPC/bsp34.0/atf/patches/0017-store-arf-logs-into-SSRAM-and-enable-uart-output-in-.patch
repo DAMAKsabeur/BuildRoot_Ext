@@ -1,0 +1,158 @@
+From d6e3dca462b0810a52535101738942389d68875e Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Mon, 17 Apr 2023 17:35:22 +0800
+Subject: [PATCH 1/1] store arf logs into SSRAM and enable uart output in atf
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ lib/libc/putchar.c                            | 24 +++++++++++++++++++
+ plat/nxp/s32/s32_bl2_el3.c                    | 11 ++++++++-
+ plat/nxp/s32/s32_bl31.c                       | 11 ++++++++-
+ plat/nxp/s32/s32g/include/s32g_platform_def.h |  6 ++---
+ plat/nxp/s32/s32g/s32g_bl2_el3.c              |  2 ++
+ plat/nxp/s32/s32g/s32g_resume.c               |  6 +++++
+ 6 files changed, 55 insertions(+), 5 deletions(-)
+
+diff --git a/lib/libc/putchar.c b/lib/libc/putchar.c
+index 037e28a..a4210b7 100644
+--- a/lib/libc/putchar.c
++++ b/lib/libc/putchar.c
+@@ -8,9 +8,33 @@
+
+ #include <drivers/console.h>
+
++/* SSRAM:0x24000600 ~ (0x24001000 - 1) are used to store atf logs for s2r debug */
++#define ATF_LOGS_STORE_ADDRESS (0x24000600)
++#define LOGS_STORE_SIZE (0x24001000 - 0x24000600)
++
++static void myconsole_store_c(int c)
++{
++	int *buf_count =(int *)(ATF_LOGS_STORE_ADDRESS);
++	char *buf_contents = (char *)(ATF_LOGS_STORE_ADDRESS + 4);
++	int count = *buf_count;
++
++	if (count == LOGS_STORE_SIZE - 4) {
++		/* if logs buf is full, just overwirte the logs buf */
++		count = 0;
++		*buf_count = 0;
++	}
++
++	*(buf_contents + count) = c;
++	*buf_count = *buf_count + 1;
++
++	return;
++}
++
+ int putchar(int c)
+ {
+ 	int res;
++
++	myconsole_store_c(c); // store logs into SSRAM
+ 	if (console_putc((unsigned char)c) >= 0)
+ 		res = c;
+ 	else
+diff --git a/plat/nxp/s32/s32_bl2_el3.c b/plat/nxp/s32/s32_bl2_el3.c
+index 9d17edc..87240b2 100755
+--- a/plat/nxp/s32/s32_bl2_el3.c
++++ b/plat/nxp/s32/s32_bl2_el3.c
+@@ -186,8 +186,17 @@ static uintptr_t get_fip_hdr_page(void)
+
+ static mmap_region_t s32_mmap[] = {
+ #if !defined(PLAT_s32r)
+-	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
++	/* mailbox:0x24000000 -  0x24000600, atf logs:0x24000600 - 0x24001000, 4k in total */
++	MAP_REGION_FLAT(S32G_SSRAM_BASE, PAGE_SIZE_4KB,
+ 			 MT_MEMORY | MT_RW | MT_SECURE),
++	/* kernel logs:0x24001000 - 0x24003000, 8k in total */
++	MAP_REGION_FLAT(S32G_SSRAM_BASE + PAGE_SIZE_4KB, (PAGE_SIZE_4KB + PAGE_SIZE_4KB) ,
++			 MT_MEMORY | MT_RW | MT_USER),
++	/* reseverd:0x24003000 - 0x24004000, 4k in total
++	 * HPCGEN2_SRAM_METHA_NO_INIT_SIZE : 0x24004000 - 0x24008000, 16k in total, atf should not access it.
++	 */
++	//MAP_REGION_FLAT(S32G_SSRAM_BASE + PAGE_SIZE_16KB - PAGE_SIZE_4KB, (S32G_SSRAM_LIMIT - S32G_SSRAM_BASE - PAGE_SIZE_16KB + PAGE_SIZE_4KB),
++	//		 MT_MEMORY | MT_RW | MT_SECURE),
+ #endif
+ 	MAP_REGION_FLAT(HPCGEN2_SRAM_BL2_LOG_START_ADDRESS, HPCGEN2_SRAM_BL2_LOG_SIZE,
+ 			  MT_MEMORY | MT_RW | MT_SECURE),
+diff --git a/plat/nxp/s32/s32_bl31.c b/plat/nxp/s32/s32_bl31.c
+index 14419f5..e2a99b3 100755
+--- a/plat/nxp/s32/s32_bl31.c
++++ b/plat/nxp/s32/s32_bl31.c
+@@ -30,8 +30,17 @@ static gicv3_dist_ctx_t dist_ctx;
+
+ static const mmap_region_t s32_mmap[] = {
+ #if !defined(PLAT_s32r)
+-	MAP_REGION_FLAT(S32G_SSRAM_BASE, S32G_SSRAM_LIMIT - S32G_SSRAM_BASE,
++	/* mailbox:0x24000000 -  0x24000600, atf logs:0x24000600 - 0x24001000, 4k in total */
++	MAP_REGION_FLAT(S32G_SSRAM_BASE, PAGE_SIZE_4KB,
+ 			 MT_MEMORY | MT_RW | MT_SECURE),
++	/* kernel logs:0x24001000 - 0x24003000, 8k in total */
++	MAP_REGION_FLAT(S32G_SSRAM_BASE + PAGE_SIZE_4KB, (PAGE_SIZE_4KB + PAGE_SIZE_4KB) ,
++			 MT_MEMORY | MT_RW | MT_USER),
++	/* reseverd:0x24003000 - 0x24004000, 4k in total
++	 * HPCGEN2_SRAM_METHA_NO_INIT_SIZE : 0x24004000 - 0x24008000, 16k in total, atf should not access it.
++	 */
++	//MAP_REGION_FLAT(S32G_SSRAM_BASE + PAGE_SIZE_16KB - PAGE_SIZE_4KB, (S32G_SSRAM_LIMIT - S32G_SSRAM_BASE - PAGE_SIZE_16KB + PAGE_SIZE_4KB),
++	//		 MT_MEMORY | MT_RW | MT_SECURE),
+ #endif
+ 	MAP_REGION_FLAT(HPCGEN2_SRAM_BL2_LOG_START_ADDRESS, HPCGEN2_SRAM_BL2_LOG_SIZE,
+ 			  MT_MEMORY | MT_RW | MT_SECURE),
+diff --git a/plat/nxp/s32/s32g/include/s32g_platform_def.h b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+index e81886d..fa445af 100755
+--- a/plat/nxp/s32/s32g/include/s32g_platform_def.h
++++ b/plat/nxp/s32/s32g/include/s32g_platform_def.h
+@@ -60,16 +60,16 @@
+
+ #if defined IMAGE_BL31
+ /* To limit usage, keep these in sync with sizeof(s32_mmap) */
+-#define MAX_MMAP_REGIONS		(16 + 2)
++#define MAX_MMAP_REGIONS		(16 + 3)
+ #define MAX_XLAT_TABLES			15
+ #endif
+
+ #if defined IMAGE_BL2
+ #if (ERRATA_S32_050543 == 1)
+-#define MAX_MMAP_REGIONS        (18 + 2)
++#define MAX_MMAP_REGIONS        (18 + 3)
+ #define MAX_XLAT_TABLES			27
+ #else
+-#define MAX_MMAP_REGIONS		(17 + 2)
++#define MAX_MMAP_REGIONS		(17 + 3)
+ #define MAX_XLAT_TABLES			26
+ #endif
+ #endif /* IMAGE_BL2 */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index d206fa6..706dffc 100755
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -99,6 +99,8 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	clear_reset_cause();
+
+ 	if (reset_cause == PERF_SYS_S2R_REASON) {
++		// enable uart output in bl2 when resume for better debug
++		//console_s32_register();
+ 		sytem_s2r_implement_times = *((volatile unsigned int *)(SYSTEM_S2R_IMPLEMENT_TIMES_ADDRESS)) + 1;
+ 		*(unsigned int *)(SYSTEM_S2R_IMPLEMENT_TIMES_ADDRESS) = sytem_s2r_implement_times;
+ 		NOTICE("sytem_s2r_implement_times:[%d]\n", sytem_s2r_implement_times);
+diff --git a/plat/nxp/s32/s32g/s32g_resume.c b/plat/nxp/s32/s32g/s32g_resume.c
+index 336c528..efa8b9f 100755
+--- a/plat/nxp/s32/s32g/s32g_resume.c
++++ b/plat/nxp/s32/s32g/s32g_resume.c
+@@ -52,9 +52,15 @@ void s32g_resume_entrypoint(void)
+ 	s32gen1_wkpu_reset();
+ #endif
+
++#ifndef HPER_GEN2_G3
+ #if (S32_USE_LINFLEX_IN_BL31 == 1)
+ 	console_s32_register();
+ #endif
++#else
++	// enable uart output in bl31 when resume for better debug
++	//console_s32_register();
++#endif
++
+ 	plat_gic_restore();
+ 	bl31_warm_entrypoint();
+ }
+--
+2.35.1

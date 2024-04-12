@@ -1,0 +1,33 @@
+From eb68bc7f22534e63575efa6de91fb79e6ffe5306 Mon Sep 17 00:00:00 2001
+From: "xiaobo.zhu" <xiaobo.zhu@continental-corporation.com>
+Date: Thu, 13 Apr 2023 22:53:35 +0800
+Subject: [PATCH] Add debug symbols
+
+---
+ Makefile | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+ mode change 100644 => 100755 Makefile
+
+diff --git a/Makefile b/Makefile
+old mode 100644
+new mode 100755
+index e7194a7..653b481
+--- a/Makefile
++++ b/Makefile
+@@ -304,6 +304,14 @@ ifneq (${DEBUG}, 0)
+         LOG_LEVEL	:=	40
+ else
+         BUILD_TYPE	:=	release
++        TF_CFLAGS	+= 	-g
++
++        ifneq ($(findstring clang,$(notdir $(CC))),)
++             ASFLAGS		+= 	-g
++        else
++             ASFLAGS		+= 	-g -Wa,--gdwarf-2
++        endif
++
+         # Use LOG_LEVEL_NOTICE by default for release builds
+         LOG_LEVEL	:=	20
+ endif
+--
+2.25.1

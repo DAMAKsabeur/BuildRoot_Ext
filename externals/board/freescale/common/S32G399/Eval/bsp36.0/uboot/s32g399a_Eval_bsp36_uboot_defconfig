@@ -1,0 +1,7 @@
+CONFIG_ARM=y
+CONFIG_ARCH_S32G3=y
+CONFIG_S32CC_HWCONFIG="serdes0:mode=pcie,clock=ext;pcie0:mode=rc;serdes1:mode=xpcs0&xpcs1,clock=ext,fmhz=125;xpcs1_0:speed=2G5"
+# CONFIG_SPI_FLASH_BAR is not set
+# CONFIG_FSL_PFENG is not set
+CONFIG_TARGET_S32G3XXAEVB3=y
+CONFIG_SD_BOOT=y

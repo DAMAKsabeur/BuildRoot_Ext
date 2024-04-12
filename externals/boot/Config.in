@@ -1,0 +1,5 @@
+menu "Bootloaders"
+
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/boot/conti-bootloader/Config.in"
+
+endmenu

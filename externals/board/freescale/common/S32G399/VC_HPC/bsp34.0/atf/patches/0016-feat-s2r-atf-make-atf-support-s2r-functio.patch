@@ -1,0 +1,231 @@
+From 651836aaf7de5a58d4d48bd809354f4e00c51495 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Fri, 14 Apr 2023 16:28:23 +0800
+Subject: [PATCH 1/1] IIP-160253: feat:[s2r][atf]:make atf support s2r function
+ purpose
+
+ below function should be done in M7 when suspend/resume rather than by A53
+ a.disable wakeup in atf b.disable rtc in atf c.disable PMIC/I2C4 in atf
+ d.disable A53 to close clocks e.standby master core should be M7 rather than
+ A53 core 0 refs: http://10.197.60.153:8085/c/NXP_RDB2_S2R_BSP_BSP34/+/96
+ http://10.197.60.153:8085/c/NXP_RDB2_S2R_BSP_BSP34/+/97
+ http://10.197.60.153:8085/c/NXP_RDB2_S2R_BSP_BSP34/+/99
+
+	MICARSOA-1076
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c | 16 +++++++++-
+ plat/nxp/s32/s32g/s32g_bl2_el3.c            | 34 ++++++++++++++++++++-
+ plat/nxp/s32/s32g/s32g_bl31.c               |  4 ++-
+ plat/nxp/s32/s32g/s32g_plat_funcs.c         |  8 +++--
+ plat/nxp/s32/s32g/s32g_resume.c             |  4 ++-
+ 5 files changed, 60 insertions(+), 6 deletions(-)
+
+diff --git a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+index c3c1d73..d89e122 100644
+--- a/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
++++ b/plat/nxp/s32/s32g/bl31_sram/bl31sram_main.c
+@@ -10,6 +10,17 @@
+ #include "ddr/ddr_lp.h"
+ #include "s32g_clocks.h"
+ #include "s32g_mc_me.h"
++#include "SRAM_address.h"
++
++/*
++ *	interface											address 								byte(s)
++ * SystemShutdownResetType					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS			1
++ * PentaSuspendFinishState					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+4			4
++ * MethaResumeFinishState					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+8			4
++ * SystemS2RImplementTimes					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+12		4
++ */
++#define PENTA_SUSPEND_FINISH_STATE 0xAAAA5555
++#define PENTA_SUSPEND_FINISH_STATE_ADDRESS (HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS + 4)
+
+ static void disable_ddr_clk(void)
+ {
+@@ -23,12 +34,15 @@ void bl31sram_main(void)
+ 	disable_mmu_el3();
+ 	ddrss_to_io_retention_mode();
+ 	disable_ddr_clk();
+-
++#ifndef HPER_GEN2_G3
+ 	s32g_disable_fxosc();
+
+ 	/* Set standby master core and request the standby transition */
+ 	s32g_set_stby_master_core(S32G_STBY_MASTER_PART, plat_my_core_pos());
++#endif
+
++	// set PENTA_SUSPEND_FINISH_STATE to notify Metha
++	*(uint32_t *)(PENTA_SUSPEND_FINISH_STATE_ADDRESS) = PENTA_SUSPEND_FINISH_STATE;
+ 	/*
+ 	 * A torn-apart variant of psci_power_down_wfi()
+ 	 */
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index 0f86434..d206fa6 100755
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -29,6 +29,17 @@
+
+ #define PERF_SYS_RESET_REASON     2
+ #define PERF_SYS_S2R_REASON       1
++/*
++ *	interface											address 								byte(s)
++ * SystemShutdownResetType					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS			1
++ * PentaSuspendFinishState					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+4			4
++ * MethaResumeFinishState					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+8			4
++ * SystemS2RImplementTimes					HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS+12		4
++ */
++#define METHA_RESUMED_FINISH_STATE 0xAAAA5555
++#define METHA_RESUMED_FINISH_STATE_ADDRESS (HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS + 8)
++#define SYSTEM_S2R_IMPLEMENT_TIMES_ADDRESS (HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS + 12)
++
+ static bl_mem_params_node_t s32g_bl2_mem_params_descs[6];
+ REGISTER_BL_IMAGE_DESCS(s32g_bl2_mem_params_descs)
+ enum reset_cause reset_cause;
+@@ -55,7 +66,13 @@ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ 	resume_entrypoint = ssram_mb->bl31_warm_entrypoint;
+ 	csr_addr = (uintptr_t)&ssram_mb->csr_settings[0];
+
+-	s32_enable_a53_clock();
++	/* NOTE:
++	 * when run s32_enable_a53_clock() function, the whole soc will reboot.
++	 * As a temp solution, we will coment out it.
++	 * Seems some clock conflicts happens between A53 and M7
++	 * need Conti do investigation in M7 side.
++	 */
++	s32_enable_a53_clock();
+ 	s32_enable_ddr_clock();
+
+ 	if (ddrss_to_normal_mode(csr_addr))
+@@ -75,11 +92,26 @@ void bl2_el3_early_platform_setup(u_register_t arg0, u_register_t arg1,
+ 	size_t index = 0;
+ 	bl_mem_params_node_t *params = s32g_bl2_mem_params_descs;
+ 	struct s32g_ssram_mailbox *ssram_mb = (void *)BL31SSRAM_MAILBOX;
++	volatile unsigned int sytem_s2r_implement_times = 0;
++	volatile unsigned int metha_resume_finish_state = 0;
+
+ 	reset_cause = get_reset_cause();
+ 	clear_reset_cause();
+
+ 	if (reset_cause == PERF_SYS_S2R_REASON) {
++		sytem_s2r_implement_times = *((volatile unsigned int *)(SYSTEM_S2R_IMPLEMENT_TIMES_ADDRESS)) + 1;
++		*(unsigned int *)(SYSTEM_S2R_IMPLEMENT_TIMES_ADDRESS) = sytem_s2r_implement_times;
++		NOTICE("sytem_s2r_implement_times:[%d]\n", sytem_s2r_implement_times);
++
++		metha_resume_finish_state = *((volatile unsigned int *)METHA_RESUMED_FINISH_STATE_ADDRESS);
++		NOTICE("metha_resume_finish_state: 0x%x\n", metha_resume_finish_state);
++		if (metha_resume_finish_state != METHA_RESUMED_FINISH_STATE) {
++			// to do
++		} else {
++			// clear up METHA_RESUMED_FINISH_STATE
++			*(unsigned int *)(METHA_RESUMED_FINISH_STATE_ADDRESS) = 0x0;
++		}
++
+ 		/* Trampoline to bl31_warm_entrypoint */
+ 		resume_bl31(ssram_mb);
+ 		panic();
+diff --git a/plat/nxp/s32/s32g/s32g_bl31.c b/plat/nxp/s32/s32g/s32g_bl31.c
+index 764130e..ba46a35 100755
+--- a/plat/nxp/s32/s32g/s32g_bl31.c
++++ b/plat/nxp/s32/s32g/s32g_bl31.c
+@@ -26,6 +26,7 @@
+ #include <s32g_bl_common.h>
+ #include <clk/clk.h>
+
++#ifndef HPER_GEN2_G3
+ static void dt_init_wkpu(void)
+ {
+ 	void *fdt;
+@@ -54,6 +55,7 @@ static void dt_init_wkpu(void)
+ 		return;
+ 	}
+ }
++#endif
+
+ static int check_clock_node(const void *fdt, int nodeoffset)
+ {
+@@ -114,8 +116,8 @@ void bl31_platform_setup(void)
+
+ #ifndef HPER_GEN2_G3
+ 	dt_init_pmic();
+-#endif
+ 	dt_init_wkpu();
++#endif
+ 	dt_init_ocotp();
+
+ 	update_core_state(plat_my_core_pos(), 1);
+diff --git a/plat/nxp/s32/s32g/s32g_plat_funcs.c b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+index 09c2920..d9f92e3 100755
+--- a/plat/nxp/s32/s32g/s32g_plat_funcs.c
++++ b/plat/nxp/s32/s32g/s32g_plat_funcs.c
+@@ -52,8 +52,8 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 	set_warm_entry();
+ #ifndef HPER_GEN2_G3
+ 	pmic_prepare_for_suspend();
+-#endif
+ 	s32gen1_wkpu_enable_irqs();
++#endif
+
+ #ifndef HPER_GEN2_G3
+ 	/* Shutting down cores */
+@@ -69,13 +69,16 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 		if (i != current_cpu)
+ 			s32_turn_off_core(S32_MC_ME_CA53_PART, i);
+ 	}
+-
++#ifndef HPER_GEN2_G3
+ 	/* PFE blocks */
+ 	s32_disable_cofb_clk(S32G_MC_ME_PFE_PART, 0);
++#endif
++
+ 	/* Keep the DDR clock */
+ 	s32_disable_cofb_clk(S32_MC_ME_USDHC_PART,
+ 			      S32_MC_ME_PRTN_N_REQ(S32_MC_ME_DDR_0_REQ));
+
++#ifndef HPER_GEN2_G3
+ 	/* Switching all MC_CGM muxes to FIRC */
+ 	s32g_sw_clks2firc();
+
+@@ -87,6 +90,7 @@ static void __dead2 platform_suspend(unsigned int current_cpu)
+ 	s32g_disable_pll(S32_ACCEL_PLL, 2);
+ 	s32g_disable_pll(S32_PERIPH_PLL, 8);
+ 	s32g_disable_pll(S32_CORE_PLL, 2);
++#endif
+
+ 	bl31sram_entry();
+ 	plat_panic_handler();
+diff --git a/plat/nxp/s32/s32g/s32g_resume.c b/plat/nxp/s32/s32g/s32g_resume.c
+index be7646b..336c528 100755
+--- a/plat/nxp/s32/s32g/s32g_resume.c
++++ b/plat/nxp/s32/s32g/s32g_resume.c
+@@ -16,6 +16,7 @@
+
+ void s32_ncore_isol_cluster0(void);
+
++#ifndef HPER_GEN2_G3
+ static void reset_rtc(void)
+ {
+ 	uint32_t rtc = S32G_RTC_BASE;
+@@ -29,6 +30,7 @@ static void reset_rtc(void)
+ 	rtcs = mmio_read_32(rtc + RTC_RTCS_OFFSET);
+ 	mmio_write_32(rtc + RTC_RTCS_OFFSET, rtcs);
+ }
++#endif
+
+ void s32g_resume_entrypoint(void)
+ {
+@@ -45,10 +47,10 @@ void s32g_resume_entrypoint(void)
+ 	ret = pmic_setup();
+ 	if (ret)
+ 		ERROR("Failed to disable VR5510 watchdog\n");
+-#endif
+
+ 	reset_rtc();
+ 	s32gen1_wkpu_reset();
++#endif
+
+ #if (S32_USE_LINFLEX_IN_BL31 == 1)
+ 	console_s32_register();
+--
+2.35.1

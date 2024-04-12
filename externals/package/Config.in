@@ -1,0 +1,4 @@
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/boot_image_generation/Config.in"
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/mmc-tools/Config.in"
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/pfe/Config.in"
+source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/odroid-firmware/Config.in"

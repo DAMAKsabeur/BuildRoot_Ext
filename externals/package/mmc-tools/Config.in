@@ -1,0 +1,11 @@
+config BR2_PACKAGE_MMC_TOOLS
+	bool "mmc-utils"
+	depends on BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_4
+	help
+	  MMC utils
+
+	  https://git.kernel.org/cgit/linux/kernel/git/cjb/mmc-utils.git
+
+
+comment "mmc-tools needs a toolchain w/ headers >= 4.4"
+	depends on !BR2_TOOLCHAIN_HEADERS_AT_LEAST_4_4

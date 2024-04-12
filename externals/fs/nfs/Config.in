@@ -1,0 +1,11 @@
+config BR2_TARGET_ROOTFS_NFS
+	bool "nfs root filesystem"
+	help
+	  Build a nfs root filesystem
+config BR2_TARGET_ROOTFS_NFS_PATH
+	string "board to configure for"
+	depends on BR2_TARGET_ROOTFS_NFS
+	default "$HOME/nfs"
+	help
+	  Specify the path where the nfs will be installed.
+	  add this path to exports params in NFS server file

@@ -1,0 +1,15 @@
+config BR2_TARGET_CONTI_BOOTLOADER
+	bool "CONTI-bootloader"
+	help
+	  1st level bootloader for Actions Semiconductor CONTI SoC.
+
+	  https://github.com/xapp-le/owl
+
+config BR2_TARGET_CONTI_BOOTLOADER_BOARD
+	string "board to configure for"
+	depends on BR2_TARGET_CONTI_BOOTLOADER
+	default "s32g-procevb-s"
+	help
+	  Specify the board to configure the bootloader for.
+	  This should be the name of a directory under CONTI/boards
+	  containing a suitable bootloader.ini file.

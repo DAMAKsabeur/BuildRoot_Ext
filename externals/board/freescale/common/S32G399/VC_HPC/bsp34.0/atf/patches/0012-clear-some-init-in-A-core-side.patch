@@ -1,0 +1,100 @@
+From ae509b13b9903f66b1a68ab0646c24cd799d3993 Mon Sep 17 00:00:00 2001
+From: uib15788 <hong.2.yang@continental-corporation.com>
+Date: Tue, 28 Mar 2023 13:32:46 +0800
+Subject: [PATCH 1/1] clear some init in A core side
+
+Signed-off-by: uib15788 <hong.2.yang@continental-corporation.com>
+---
+ plat/nxp/s32/s32_pinctrl.c       |  6 ++++--
+ plat/nxp/s32/s32g/s32g_bl2_el3.c | 12 +++++-------
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+ mode change 100644 => 100755 plat/nxp/s32/s32_pinctrl.c
+
+diff --git a/plat/nxp/s32/s32_pinctrl.c b/plat/nxp/s32/s32_pinctrl.c
+old mode 100644
+new mode 100755
+index c4d4d48..f8d9574
+--- a/plat/nxp/s32/s32_pinctrl.c
++++ b/plat/nxp/s32/s32_pinctrl.c
+@@ -6,7 +6,7 @@
+ #include <lib/mmio.h>
+ #include <assert.h>
+ #include "s32_pinctrl.h"
+-
++#ifndef HPER_GEN2_G3
+ static void linflex_config_pinctrl(int lf)
+ {
+ 	if (!lf) {
+@@ -36,7 +36,7 @@ static void linflex_config_pinctrl(int lf)
+ 			      SIUL2_IMCR_S32G_G1_UART1_RXD_to_pad);
+ 	}
+ }
+-
++#endif
+ static void sdhc_config_pinctrl(void)
+ {
+ 	/* Set iomux PADS for USDHC */
+@@ -89,6 +89,8 @@ static void sdhc_config_pinctrl(void)
+
+ void s32_plat_config_pinctrl(void)
+ {
++#ifndef HPER_GEN2_G3
+ 	linflex_config_pinctrl(S32_LINFLEX_MODULE);
++#endif
+ 	sdhc_config_pinctrl();
+ }
+diff --git a/plat/nxp/s32/s32g/s32g_bl2_el3.c b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+index f646fe7..0f86434 100755
+--- a/plat/nxp/s32/s32g/s32g_bl2_el3.c
++++ b/plat/nxp/s32/s32g/s32g_bl2_el3.c
+@@ -36,12 +36,10 @@ static enum reset_cause get_reset_cause(void)
+ {
+ 	uint32_t wake_up_reason = 0;
+ 	uint32_t boot_up_reason = *((volatile uint32_t*)HPCGEN2_SRAM_BOOT_MODE_FLAG_START_ADDRESS);
+-	ERROR("boot_up_reason = %d\n", boot_up_reason);
+
+ 	if (boot_up_reason == 0)
+ 	{
+ 		wake_up_reason = *((volatile uint32_t*)HPCGEN2_SRAM_POWER_SHARABLE_RAM_START_ADDRESS);
+-		ERROR("wake_up_reason = %d\n", wake_up_reason);
+ 	}
+
+ 	return wake_up_reason;
+@@ -49,7 +47,7 @@ static enum reset_cause get_reset_cause(void)
+
+ static void resume_bl31(struct s32g_ssram_mailbox *ssram_mb)
+ {
+-	NOTICE("called resume_bl31");
++	NOTICE("called resume_bl31\n");
+ #if S32CC_EMU == 0
+ 	s32g_warm_entrypoint_t resume_entrypoint;
+ 	uintptr_t csr_addr;
+@@ -129,8 +127,8 @@ void bl2_el3_plat_arch_setup(void)
+ 	/* set PFE_COH_EN to 1e A core start up */
+ 	mmio_write_32(PFE_COH_EN_ADDRESS, en_value);
+
+-	dt_init_ocotp();
+ #ifndef HPER_GEN2_G3
++	dt_init_ocotp();
+ 	dt_init_pmic();
+
+ #if S32CC_EMU == 0
+@@ -147,13 +145,13 @@ void bl2_el3_plat_arch_setup(void)
+ 	 */
+ 	s32_sram_clear(FIP_BASE, FIP_BASE + FIP_HEADER_SIZE);
+
+-	s32_ssram_clear();
++	//s32_ssram_clear();
+
+ 	/* disable Copy bl31 ssram stage */
+ 	//copy_bl31ssram_image();
+-
++#ifndef HPER_GEN2_G3
+ 	clear_swt_faults();
+-
++#endif
+ 	/* This will also populate CSR section from bl31ssram */
+ 	if ( reset_cause == PERF_SYS_RESET_REASON)
+ 	{
+--
+2.35.1

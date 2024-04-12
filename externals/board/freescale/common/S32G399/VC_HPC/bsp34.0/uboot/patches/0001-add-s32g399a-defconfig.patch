@@ -1,0 +1,143 @@
+From 00bf1d99ea881cded0b5536e0c5994329cba159e Mon Sep 17 00:00:00 2001
+From: "Damak Sabeur (uic56995)" <sabeur damak>
+Date: Wed, 12 Jul 2023 14:21:20 +0200
+Subject: [PATCH] add s32g399a defconfig
+
+---
+ configs/s32g3_hper_gen2_xmi_defconfig | 91 +++++++++++++++++++++++++++
+ include/configs/s32-gen1_hper_gen2.h  | 25 ++++++++
+ 2 files changed, 116 insertions(+)
+ create mode 100755 configs/s32g3_hper_gen2_xmi_defconfig
+ create mode 100755 include/configs/s32-gen1_hper_gen2.h
+
+diff --git a/configs/s32g3_hper_gen2_xmi_defconfig b/configs/s32g3_hper_gen2_xmi_defconfig
+new file mode 100755
+index 00000000..2c96e825
+--- /dev/null
++++ b/configs/s32g3_hper_gen2_xmi_defconfig
+@@ -0,0 +1,91 @@
++CONFIG_ARM=y
++CONFIG_ARCH_S32G3=y
++CONFIG_CUSTOM_SYS_TEXT_BASE=y
++CONFIG_SYS_TEXT_BASE=0xDFAA0000
++CONFIG_CUSTOM_SYS_DATA_BASE=y
++CONFIG_SYS_DATA_BASE=0xdfa00000
++CONFIG_EXTRA_KERNEL_BOOT_ARGS="hpe_args=${pfeaddr},${pfe1addr},${pfe2addr}"
++CONFIG_ENV_OFFSET=0xa000
++# CONFIG_SPI_FLASH_BAR is not set
++CONFIG_ENV_IS_IN_MMC=y
++CONFIG_ENV_SIZE=0x1e00
++CONFIG_TARGET_S32G3XXAEVB=y
++CONFIG_TARGET_S32GEN1_HPER_GEN2=y
++CONFIG_TARGET_S32GEN1_HPER_GEN2_G3_XMI=y
++CONFIG_HPER_GEN2_BOOTLOADER=y
++CONFIG_HPER_GEN2_BANK_MGMT=y
++CONFIG_ENV_VARS_UBOOT_CONFIG=y
++# CONFIG_FIT is not set
++CONFIG_BOOTDELAY=0
++# CONFIG_CMD_EEPROM is not set
++# CONFIG_CMD_MD5SUM is not set
++# CONFIG_CMD_MEMTEST is not set
++# CONFIG_CMD_LZMADEC is not set
++# CONFIG_CMD_UNZIP is not set
++# CONFIG_CMD_ADC is not set
++# CONFIG_CMD_FUSE is not set
++# CONFIG_CMD_GPIO is not set
++# CONFIG_CMD_I2C is not set
++# CONFIG_CMD_LOADB is not set
++# CONFIG_CMD_LOADS is not set
++# CONFIG_CMD_SF is not set
++# CONFIG_CMD_EXT2 is not set
++# CONFIG_CMD_EXT4 is not set
++CONFIG_CMD_SECUREBOOT=y
++CONFIG_HSE_CRYPTO_HASH=y
++CONFIG_HSE_CRYPTO_SIGN=y
++CONFIG_HSE_CRYPTO_RNG=y
++# CONFIG_CMD_FAT is not set
++# CONFIG_DOS_PARTITION is not set
++CONFIG_EFI_PARTITION=y
++# CONFIG_ADC is not set
++# CONFIG_SARADC_S32CC is not set
++CONFIG_HSE_SECBOOT=y
++CONFIG_CRYPTO_DEV_NXP_HSE_MU2=y
++# CONFIG_SYS_I2C_MXC is not set
++# CONFIG_PCI is not set
++# CONFIG_PINCTRL_GENERIC is not set
++# CONFIG_PINCONF_RECURSIVE is not set
++# CONFIG_DM_PMIC is not set
++# CONFIG_USB is not set
++# CONFIG_FS_FAT is not set
++CONFIG_REGEX=y
++CONFIG_SHA1=y
++CONFIG_SHA256=y
++# CONFIG_GZIP is not set
++# CONFIG_EFI_LOADER is not set
++CONFIG_DISPLAY_CPUINFO=n
++CONFIG_NR_DRAM_BANKS=1
++CONFIG_ARMV8_SEC_FIRMWARE_SUPPORT=y
++CONFIG_MMC_HS200_SUPPORT=y
++CONFIG_MMC_IO_VOLTAGE=y
++CONFIG_MMC_UHS_SUPPORT=y
++
++
++CONFIG_TARGET_S32GEN1_HPER_GEN2_B2=y
++CONFIG_DWC_ETH_QOS_DEVICES=y
++CONFIG_DWC_ETH_QOS_S32CC=y
++CONFIG_NET=y
++CONFIG_CMD_NET=y
++# CONFIG_CMD_DHCP is not set
++# CONFIG_BOOTP_DNS2 is not set
++# CONFIG_BOOTP_PREFER_SERVERIP is not set
++# CONFIG_BOOTP_NTPSERVER is not set
++# CONFIG_CMD_PCAP is not set
++CONFIG_CMD_TFTPBOOT=y
++# CONFIG_CMD_TFTPPUT is not set
++# CONFIG_CMD_TFTPSRV is not set
++CONFIG_NET_TFTP_VARS=y
++# CONFIG_CMD_RARP is not set
++CONFIG_CMD_PING=y
++# CONFIG_CMD_CDP is not set
++# CONFIG_CMD_SNTP is not set
++# CONFIG_CMD_DNS is not set
++# CONFIG_CMD_LINK_LOCAL is not set
++# CONFIG_CMD_ETHSW is not set
++# CONFIG_CMD_PXE is not set
++# CONFIG_CMD_WOL is not set
++# CONFIG_TIMER is not set
++# CONFIG_DM_SERIAL is not set
++CONFIG_SILENT_CONSOLE=y
++CONFIG_SILENT_CONSOLE_UPDATE_ON_RELOC=y
+diff --git a/include/configs/s32-gen1_hper_gen2.h b/include/configs/s32-gen1_hper_gen2.h
+new file mode 100755
+index 00000000..617f6d09
+--- /dev/null
++++ b/include/configs/s32-gen1_hper_gen2.h
+@@ -0,0 +1,25 @@
++/**
++ * Copyright 2021 Continental
++ * All rights exclusively reserved for Continental,
++ * unless expressly agreed to otherwise.
++ *
++ * Configuration settings for the Freescale/NXP S32-GEN1 HPER_GEN2 board.
++ */
++
++#ifndef __S32_GEN1_HPER_GEN2_H
++#define __S32_GEN1_HPER_GEN2_H
++
++#if defined(CONFIG_HPER_GEN2_BANK_MGMT)
++#define BOOTLOADER_BANK_A (0u)
++#define BOOTLOADER_BANK_B (1u)
++#endif /* CONFIG_HPER_GEN2_BANK_MGMT */
++
++#if defined(CONFIG_TARGET_S32GEN1_HPER_GEN2)
++#define BOOTLOADER_BOOT_MODE_NORMAL     (0u)
++#define BOOTLOADER_BOOT_MODE_FLASH      (1u)
++#define BOOTLOADER_BOOT_MODE_FOTA       (2u) // used to run deca with fota sequence
++#define BOOTLOADER_BOOT_MODE_UDS_UPDATE (3u) // used to run deca with uds update sequence
++#define BOOTLOADER_BOOT_MODE_FALLBACK   (4u) // used to run deca with fallback sequence
++#endif /* CONFIG_TARGET_S32GEN1_HPER_GEN2 */
++
++#endif /* __S32_GEN1_HPER_GEN2_H */
+-- 
+2.25.1
+
