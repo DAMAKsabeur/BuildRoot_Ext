@@ -7,7 +7,9 @@ define ROOTFS_NFS_CMD
     then 
         mkdir -p $(BR2_TARGET_ROOTFS_NFS_PATH) 
     fi
-	rsync -r $(TARGET_DIR)/*  $(BR2_TARGET_ROOTFS_NFS_PATH)
+#~ 	rsync -rtvpl  $(TARGET_DIR)/*  $(BR2_TARGET_ROOTFS_NFS_PATH)
+#~ 	chmod 777 -R $(BR2_TARGET_ROOTFS_NFS_PATH)
+	tar -xavf $(BINARIES_DIR)/rootfs.tar -C $(BR2_TARGET_ROOTFS_NFS_PATH) 
 endef
 
 $(eval $(rootfs))
