@@ -38,3 +38,5 @@ boot_emmc=usb start; run loadimage;run loadramdisk;run loadfdt; ${boot_mtd} ${lo
 nfs_boot_args=setenv bootargs console=tty0 console=ttyAML0,115200n8 root=/dev/nfs ip=192.168.3.2:192.168.3.10::255.255.255.0::eth0:both nfsrootdebug nfsroot=192.168.3.10:/home/uic56995/nfs/odroid_c4_nfs,v3,tcp,rw
 boot_tftp=run nfs_boot_args; run loadtftpimage; run loadtftpfdt; ${boot_mtd} ${loadaddr} - ${fdt_addr};
 bootcmd=run boot_tftp
+
+tftp ${loadaddr} ${image}; tftp ${fdt_addr} ${fdt_file}; setenv bootargs console=tty0 console=ttyAML0,115200n8 root=/dev/nfs ip=192.168.3.2:192.168.3.10::255.255.255.0::eth0:both nfsrootdebug nfsroot=192.168.3.10:/home/uic56995/nfs/odroid_c4_nfs,v3,tcp,rw ; ${boot_mtd} ${loadaddr} - ${fdt_addr};
