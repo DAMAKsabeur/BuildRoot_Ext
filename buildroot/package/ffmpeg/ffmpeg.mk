@@ -4,9 +4,16 @@
 #
 ################################################################################
 
-FFMPEG_VERSION = 4.4.4
-FFMPEG_SOURCE = ffmpeg-$(FFMPEG_VERSION).tar.xz
-FFMPEG_SITE = https://ffmpeg.org/releases
+#~ FFMPEG_VERSION = 4.4.4
+#~ FFMPEG_SOURCE = ffmpeg-$(FFMPEG_VERSION).tar.xz
+#~ FFMPEG_SITE = https://github.com/jc-kynesim/rpi-ffmpeg/tree/
+
+#~ FFMPEG_VERSION = dev/6.0/rpi_import_1
+#~ FFMPEG_SITE = $(call github,jc-kynesim,rpi-ffmpeg,$(FFMPEG_VERSION))
+
+FFMPEG_VERSION = dev/6.0/rpi_import_1
+FFMPEG_SITE = https://github.com/jc-kynesim/rpi-ffmpeg.git
+FFMPEG_SITE_METHOD = git
 FFMPEG_INSTALL_STAGING = YES
 
 FFMPEG_LICENSE = LGPL-2.1+, libjpeg license
@@ -79,6 +86,7 @@ FFMPEG_CONF_OPTS += --disable-ffmpeg
 endif
 
 ifeq ($(BR2_PACKAGE_FFMPEG_FFPLAY),y)
+FFMPEG_DEPENDENCIES += sdl2
 FFMPEG_CONF_OPTS += --enable-ffplay
 FFMPEG_CONF_ENV += SDL_CONFIG=$(STAGING_DIR)/usr/bin/sdl2-config
 else
@@ -92,11 +100,11 @@ else
 FFMPEG_CONF_OPTS += --disable-libv4l2
 endif
 
-ifeq ($(BR2_PACKAGE_FFMPEG_AVRESAMPLE),y)
-FFMPEG_CONF_OPTS += --enable-avresample
-else
-FFMPEG_CONF_OPTS += --disable-avresample
-endif
+#~ ifeq ($(BR2_PACKAGE_FFMPEG_AVRESAMPLE),y)
+#~ FFMPEG_CONF_OPTS += --enable-avresample
+#~ else
+#~ FFMPEG_CONF_OPTS += --disable-avresample
+#~ endif
 
 ifeq ($(BR2_PACKAGE_FFMPEG_FFPROBE),y)
 FFMPEG_CONF_OPTS += --enable-ffprobe
@@ -246,6 +254,7 @@ endif
 
 ifeq ($(BR2_PACKAGE_LIBDRM),y)
 FFMPEG_CONF_OPTS += --enable-libdrm
+FFMPEG_CONF_OPTS += --enable-v4l2_m2m --enable-libudev --enable-v4l2-request
 FFMPEG_DEPENDENCIES += libdrm
 else
 FFMPEG_CONF_OPTS += --disable-libdrm

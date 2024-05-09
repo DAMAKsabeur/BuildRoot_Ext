@@ -1,0 +1,22 @@
+From a40457394cd82016eea2dce8da8bbc4078de587a Mon Sep 17 00:00:00 2001
+From: Sabeur DAMAK <damak.sabeur@gmail.com>
+Date: Thu, 2 May 2024 09:56:17 +0200
+Subject: [PATCH] avoid compile mali overlay
+
+---
+ arch/arm64/boot/dts/amlogic/Makefile | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/amlogic/Makefile b/arch/arm64/boot/dts/amlogic/Makefile
+index c74a30da6305..b9ed41452d18 100644
+--- a/arch/arm64/boot/dts/amlogic/Makefile
++++ b/arch/arm64/boot/dts/amlogic/Makefile
+@@ -85,4 +85,3 @@ dtb-$(CONFIG_ARCH_MESON) += meson64_odroidn2_plus.dtb
+ 
+ subdir-y += overlays/odroidc4
+ subdir-y += overlays/odroidn2
+-subdir-y += overlays/mali
+\ No newline at end of file
+-- 
+2.34.1
+

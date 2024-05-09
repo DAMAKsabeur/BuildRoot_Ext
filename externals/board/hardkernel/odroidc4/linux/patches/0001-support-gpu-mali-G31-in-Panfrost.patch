@@ -1,0 +1,180 @@
+From 5b430a55b355c236d9479e2b2984aaec6d3ec8f0 Mon Sep 17 00:00:00 2001
+From: Sabeur DAMAK <damak.sabeur@gmail.com>
+Date: Thu, 2 May 2024 01:07:32 +0200
+Subject: [PATCH] support gpu mali G31 in Panfrost
+
+---
+ .../boot/dts/amlogic/meson-g12-common.dtsi    | 101 +++++++++---------
+ .../boot/dts/amlogic/overlays/mali/Makefile   |   5 -
+ .../dts/amlogic/overlays/mali/panfrost.dtso   |  20 ----
+ 3 files changed, 49 insertions(+), 77 deletions(-)
+ delete mode 100644 arch/arm64/boot/dts/amlogic/overlays/mali/Makefile
+ delete mode 100644 arch/arm64/boot/dts/amlogic/overlays/mali/panfrost.dtso
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi b/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi
+index 48da77e3cb1f..30ccc289e6ad 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi
++++ b/arch/arm64/boot/dts/amlogic/meson-g12-common.dtsi
+@@ -59,38 +59,38 @@ efuse: efuse {
+ 		secure-monitor = <&sm>;
+ 	};
+ 
+-	gpu_opp_table: opp-table-gpu {
+-		compatible = "operating-points-v2";
+-
+-		opp-124999998 {
+-			opp-hz = /bits/ 64 <124999998>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-249999996 {
+-			opp-hz = /bits/ 64 <249999996>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-285714281 {
+-			opp-hz = /bits/ 64 <285714281>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-399999994 {
+-			opp-hz = /bits/ 64 <399999994>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-499999992 {
+-			opp-hz = /bits/ 64 <499999992>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-666666656 {
+-			opp-hz = /bits/ 64 <666666656>;
+-			opp-microvolt = <800000>;
+-		};
+-		opp-799999987 {
+-			opp-hz = /bits/ 64 <799999987>;
+-			opp-microvolt = <800000>;
+-		};
+-	};
++    gpu_opp_table: opp-table {
++      compatible = "operating-points-v2";
++
++      opp-533000000 {
++        opp-hz = /bits/ 64 <533000000>;
++        opp-microvolt = <1250000>;
++      };
++      opp-450000000 {
++        opp-hz = /bits/ 64 <450000000>;
++        opp-microvolt = <1150000>;
++      };
++      opp-400000000 {
++        opp-hz = /bits/ 64 <400000000>;
++        opp-microvolt = <1125000>;
++      };
++      opp-350000000 {
++        opp-hz = /bits/ 64 <350000000>;
++        opp-microvolt = <1075000>;
++      };
++      opp-266000000 {
++        opp-hz = /bits/ 64 <266000000>;
++        opp-microvolt = <1025000>;
++      };
++      opp-160000000 {
++        opp-hz = /bits/ 64 <160000000>;
++        opp-microvolt = <925000>;
++      };
++      opp-100000000 {
++        opp-hz = /bits/ 64 <100000000>;
++        opp-microvolt = <912500>;
++      };
++    };
+ 
+ 	psci {
+ 		compatible = "arm,psci-1.0";
+@@ -2440,7 +2440,22 @@ sd_emmc_c: mmc@ffe07000 {
+ 			clock-names = "core", "clkin0", "clkin1";
+ 			resets = <&reset RESET_SD_EMMC_C>;
+ 		};
+-
++		
++        mali: gpu@ffe40000 {
++            compatible = "amlogic,meson-g12a-mali", "arm,mali-bifrost";
++            reg = <0x0 0xffe40000 0x0 0x40000>;          
++            interrupt-parent = <&gic>;
++            interrupts = <GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH>,
++                         <GIC_SPI 161 IRQ_TYPE_LEVEL_HIGH>,
++                         <GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>;
++            interrupt-names = "gpu", "mmu", "job";
++            clocks = <&clkc CLKID_MALI>;
++            clock-names = "clk_mali";
++            resets = <&reset RESET_DVALIN_CAPB3>, <&reset RESET_DVALIN>;
++            operating-points-v2 = <&gpu_opp_table>;
++            #cooling-cells = <2>;
++        };
++        
+ 		usb: usb@ffe09000 {
+ 			status = "disabled";
+ 			compatible = "amlogic,meson-g12a-usb-ctrl";
+@@ -2484,25 +2499,7 @@ dwc3: usb@ff500000 {
+ 			};
+ 		};
+ 
+-                mali: gpu@ffe40000 {
+-					compatible = "arm,mali-midgard";
+-					reg = <0x0 0xffe40000 0x0 0x40000>,
+-                    	<0 0xFFD01000 0 0x01000>,
+-                    	<0 0xFF800000 0 0x01000>,
+-                    	<0 0xFF63c000 0 0x01000>,
+-                    	<0 0xFFD01000 0 0x01000>;
+-
+-                    interrupt-parent = <&gic>;
+-                    interrupts = <GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH>,
+-                                 <GIC_SPI 161 IRQ_TYPE_LEVEL_HIGH>,
+-                                 <GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>;
+-                    interrupt-names = "GPU", "MMU", "JOB";
+-                    clocks = <&clkc CLKID_MALI>;
+-                    clock-names = "clk_mali";
+-                    resets = <&reset RESET_DVALIN_CAPB3>, <&reset RESET_DVALIN>;
+-                    operating-points-v2 = <&gpu_opp_table>;
+-                    #cooling-cells = <2>;
+-                };
++
+ 
+ 	};
+ 
+diff --git a/arch/arm64/boot/dts/amlogic/overlays/mali/Makefile b/arch/arm64/boot/dts/amlogic/overlays/mali/Makefile
+deleted file mode 100644
+index aeab2b5c195e..000000000000
+--- a/arch/arm64/boot/dts/amlogic/overlays/mali/Makefile
++++ /dev/null
+@@ -1,5 +0,0 @@
+-dtbo-y += \
+-	panfrost.dtbo 
+-
+-targets += $(dtbo-y)
+-always-y := $(dtbo-y)
+diff --git a/arch/arm64/boot/dts/amlogic/overlays/mali/panfrost.dtso b/arch/arm64/boot/dts/amlogic/overlays/mali/panfrost.dtso
+deleted file mode 100644
+index c41d5f4d0b03..000000000000
+--- a/arch/arm64/boot/dts/amlogic/overlays/mali/panfrost.dtso
++++ /dev/null
+@@ -1,20 +0,0 @@
+-/dts-v1/;
+-/plugin/;
+-
+-#include <dt-bindings/interrupt-controller/irq.h>
+-#include <dt-bindings/interrupt-controller/arm-gic.h>
+-
+-/ {
+-	fragment@0 {
+-		target-path = "/soc/gpu@ffe40000";
+-
+-		__overlay__ {
+-   			compatible = "amlogic,meson-g12a-mali", "arm,mali-bifrost";
+-
+-			interrupts = <GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>,
+-				<GIC_SPI 161 IRQ_TYPE_LEVEL_HIGH>,
+-				<GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH>;
+-			interrupt-names = "job", "mmu", "gpu";
+-		};
+-	};
+-};
+\ No newline at end of file
+-- 
+2.34.1
+

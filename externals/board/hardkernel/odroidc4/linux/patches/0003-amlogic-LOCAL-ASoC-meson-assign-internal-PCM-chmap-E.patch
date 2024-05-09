@@ -1,0 +1,43 @@
+From d81fbd7d9d8157520384d340d7e3bc85992020c3 Mon Sep 17 00:00:00 2001
+From: Sabeur DAMAK <damak.sabeur@gmail.com>
+Date: Mon, 6 May 2024 15:30:42 +0200
+Subject: [PATCH] amlogic-LOCAL-ASoC-meson-assign-internal-PCM-chmap-ELD-IEC95
+
+---
+ sound/core/pcm_lib.c          | 5 ++++-
+ sound/soc/codecs/hdmi-codec.c | 3 ++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/sound/core/pcm_lib.c b/sound/core/pcm_lib.c
+index a11cd7d6295f..94269e485873 100644
+--- a/sound/core/pcm_lib.c
++++ b/sound/core/pcm_lib.c
+@@ -2547,7 +2547,10 @@ int snd_pcm_add_chmap_ctls(struct snd_pcm *pcm, int stream,
+ 		knew.name = "Playback Channel Map";
+ 	else
+ 		knew.name = "Capture Channel Map";
+-	knew.device = pcm->device;
++	if (pcm->internal && pcm->device)
++		dev_info(pcm->card->dev, "workaround active: internal PCM chmap controls mapped to device 0\n");
++	else
++		knew.device = pcm->device;
+ 	knew.count = pcm->streams[stream].substream_count;
+ 	knew.private_value = private_value;
+ 	info->kctl = snd_ctl_new1(&knew, info);
+diff --git a/sound/soc/codecs/hdmi-codec.c b/sound/soc/codecs/hdmi-codec.c
+index 0938671700c6..3131a20f1b21 100644
+--- a/sound/soc/codecs/hdmi-codec.c
++++ b/sound/soc/codecs/hdmi-codec.c
+@@ -801,7 +801,8 @@ static int hdmi_codec_pcm_new(struct snd_soc_pcm_runtime *rtd,
+ 		if (!kctl)
+ 			return -ENOMEM;
+ 
+-		kctl->id.device = rtd->pcm->device;
++		if (!rtd->pcm->internal)
++			kctl->id.device = rtd->pcm->device;
+ 		ret = snd_ctl_add(rtd->card->snd_card, kctl);
+ 		if (ret < 0)
+ 			return ret;
+-- 
+2.34.1
+

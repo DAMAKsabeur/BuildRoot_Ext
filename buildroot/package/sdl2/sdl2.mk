@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-SDL2_VERSION = 2.28.5
+SDL2_VERSION = 2.30.2
 SDL2_SOURCE = SDL2-$(SDL2_VERSION).tar.gz
 SDL2_SITE = http://www.libsdl.org/release
 SDL2_LICENSE = Zlib
@@ -77,29 +77,86 @@ else
 SDL2_CONF_OPTS += --disable-3dnow
 endif
 
+ifeq ($(BR2_PACKAGE_SDL2_DIRECTFB),y)
+SDL2_DEPENDENCIES += directfb
+SDL2_CONF_OPTS += --enable-video-directfb
+SDL2_CONF_ENV += ac_cv_path_DIRECTFBCONFIG=$(STAGING_DIR)/usr/bin/directfb-config
+else
 SDL2_CONF_OPTS += --disable-video-directfb
+endif
 
-#~ ifeq ($(BR2_PACKAGE_SDL2_OPENGLES)$(BR2_PACKAGE_RPI_USERLAND),yy)
-#~ SDL2_DEPENDENCIES += rpi-userland
-#~ SDL2_CONF_OPTS += --enable-video-rpi
-#~ else
-#~ SDL2_CONF_OPTS += --disable-video-rpi
-#~ endif
+ifeq ($(BR2_PACKAGE_SDL2_OPENGLES)$(BR2_PACKAGE_RPI_USERLAND),yy)
+SDL2_DEPENDENCIES += rpi-userland
+SDL2_CONF_OPTS += --enable-video-rpi
+else
 SDL2_CONF_OPTS += --disable-video-rpi
+endif
+
 # x-includes and x-libraries must be set for cross-compiling
 # By default x_includes and x_libraries contains unsafe paths.
 # (/usr/X11R6/include and /usr/X11R6/lib)
+ifeq ($(BR2_PACKAGE_SDL2_X11),y)
+SDL2_DEPENDENCIES += xlib_libX11 xlib_libXext
 
+# X11/extensions/shape.h is provided by libXext.
+SDL2_CONF_OPTS += --enable-video-x11 \
+	--with-x=$(STAGING_DIR) \
+	--x-includes=$(STAGING_DIR)/usr/include \
+	--x-libraries=$(STAGING_DIR)/usr/lib \
+	--enable-video-x11-xshape
+
+ifeq ($(BR2_PACKAGE_XLIB_LIBXCURSOR),y)
+SDL2_DEPENDENCIES += xlib_libXcursor
+SDL2_CONF_OPTS += --enable-video-x11-xcursor
+else
 SDL2_CONF_OPTS += --disable-video-x11-xcursor
+endif
+
+ifeq ($(BR2_PACKAGE_XLIB_LIBXI),y)
+SDL2_DEPENDENCIES += xlib_libXi
+SDL2_CONF_OPTS += --enable-video-x11-xinput
+else
 SDL2_CONF_OPTS += --disable-video-x11-xinput
+endif
+
+ifeq ($(BR2_PACKAGE_XLIB_LIBXRANDR),y)
+SDL2_DEPENDENCIES += xlib_libXrandr
+SDL2_CONF_OPTS += --enable-video-x11-xrandr
+else
 SDL2_CONF_OPTS += --disable-video-x11-xrandr
-SDL2_CONF_OPTS += --enable-video-opengl 
+endif
+
+ifeq ($(BR2_PACKAGE_XLIB_LIBXSCRNSAVER),y)
+SDL2_DEPENDENCIES += xlib_libXScrnSaver
+SDL2_CONF_OPTS += --enable-video-x11-scrnsaver
+else
+SDL2_CONF_OPTS += --disable-video-x11-scrnsaver
+endif
+
+else
+SDL2_CONF_OPTS += --disable-video-x11 --without-x
+endif
+
+ifeq ($(BR2_PACKAGE_SDL2_OPENGL),y)
+SDL2_CONF_OPTS += --enable-video-opengl
+SDL2_DEPENDENCIES += libgl
+else
+SDL2_CONF_OPTS += --disable-video-opengl
+endif
+
+ifeq ($(BR2_PACKAGE_SDL2_OPENGLES),y)
 SDL2_CONF_OPTS += \
 	--enable-video-opengles \
 	--enable-video-opengles1 \
 	--enable-video-opengles2
-
 SDL2_DEPENDENCIES += libgles
+else
+SDL2_CONF_OPTS += \
+	--disable-video-opengles \
+	--disable-video-opengles1 \
+	--disable-video-opengles2
+endif
+
 ifeq ($(BR2_PACKAGE_ALSA_LIB),y)
 SDL2_DEPENDENCIES += alsa-lib
 SDL2_CONF_OPTS += --enable-alsa
@@ -107,12 +164,11 @@ else
 SDL2_CONF_OPTS += --disable-alsa
 endif
 
-#~ ifeq ($(BR2_PACKAGE_SDL2_KMSDRM),y)
-#~ SDL2_DEPENDENCIES += libdrm libgbm libegl
-#~ SDL2_CONF_OPTS += --enable-video-kmsdrm
-#~ else
-#~ SDL2_CONF_OPTS += --disable-video-kmsdrm
-#~ endif
+ifeq ($(BR2_PACKAGE_SDL2_KMSDRM),y)
 SDL2_DEPENDENCIES += libdrm libgbm libegl
 SDL2_CONF_OPTS += --enable-video-kmsdrm
+else
+SDL2_CONF_OPTS += --disable-video-kmsdrm
+endif
+
 $(eval $(autotools-package))

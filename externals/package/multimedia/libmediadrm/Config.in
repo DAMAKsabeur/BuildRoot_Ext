@@ -1,4 +1,0 @@
-menu "Media DRM Prebuilt"
-source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/multimedia/libmediadrm/widevine-bin/Config.in"
-source "$BR2_EXTERNAL_CONTINENTAL_PATH/package/multimedia/libmediadrm/libsecmem-bin/Config.in"
-endmenu

@@ -1,0 +1,25 @@
+From e41db7bedfe7d88d8874ac3420a540620f3b79d2 Mon Sep 17 00:00:00 2001
+From: Sabeur DAMAK <damak.sabeur@gmail.com>
+Date: Mon, 6 May 2024 21:38:22 +0200
+Subject: [PATCH] amlogic-FROMLIST-v1-ASoC-meson-axg-tdm-interface-clk-add
+
+---
+ sound/soc/meson/axg-tdm-interface.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sound/soc/meson/axg-tdm-interface.c b/sound/soc/meson/axg-tdm-interface.c
+index c40e13752d18..83f7f7576a03 100644
+--- a/sound/soc/meson/axg-tdm-interface.c
++++ b/sound/soc/meson/axg-tdm-interface.c
+@@ -11,6 +11,8 @@
+ #include <sound/soc-dai.h>
+ 
+ #include "axg-tdm.h"
++/* Maximum bit clock frequency according the datasheets */
++#define MAX_SCLK 100000000 /* Hz */
+ 
+ enum {
+ 	TDM_IFACE_PAD,
+-- 
+2.34.1
+

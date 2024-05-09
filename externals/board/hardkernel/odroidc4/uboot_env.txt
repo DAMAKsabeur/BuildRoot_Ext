@@ -3,7 +3,7 @@ baudrate=115200
 board=odroid-c4
 board_name=odroid-c4
 boot_mtd=booti
-bootdelay=20
+bootdelay=5
 cpu=armv8
 fdt_addr=0x08008000
 dtb_emmc_block=10010
@@ -38,5 +38,3 @@ boot_emmc=usb start; run loadimage;run loadramdisk;run loadfdt; ${boot_mtd} ${lo
 nfs_boot_args=setenv bootargs console=tty0 console=ttyAML0,115200n8 root=/dev/nfs ip=192.168.3.2:192.168.3.10::255.255.255.0::eth0:both nfsrootdebug nfsroot=192.168.3.10:/home/uic56995/nfs/odroid_c4_nfs,v3,tcp,rw
 boot_tftp=run nfs_boot_args; run loadtftpimage; run loadtftpfdt; ${boot_mtd} ${loadaddr} - ${fdt_addr};
 bootcmd=run boot_tftp
-
-tftp ${loadaddr} ${image}; tftp ${fdt_addr} ${fdt_file}; setenv bootargs console=tty0 console=ttyAML0,115200n8 root=/dev/nfs ip=192.168.3.2:192.168.3.10::255.255.255.0::eth0:both nfsrootdebug nfsroot=192.168.3.10:/home/uic56995/nfs/odroid_c4_nfs,v3,tcp,rw ; ${boot_mtd} ${loadaddr} - ${fdt_addr};

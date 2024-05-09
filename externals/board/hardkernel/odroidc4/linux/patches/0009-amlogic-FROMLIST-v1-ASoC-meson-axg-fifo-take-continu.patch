@@ -1,0 +1,80 @@
+From 7db7a7ffff34fac2c50be3a11ee2f05a1a115041 Mon Sep 17 00:00:00 2001
+From: Sabeur DAMAK <damak.sabeur@gmail.com>
+Date: Mon, 6 May 2024 16:02:24 +0200
+Subject: [PATCH] amlogic-FROMLIST-v1-ASoC-meson-axg-fifo-take-continuous-rate
+
+---
+ sound/soc/meson/axg-fifo.h  | 3 +--
+ sound/soc/meson/axg-frddr.c | 8 ++++++--
+ sound/soc/meson/axg-toddr.c | 8 ++++++--
+ 3 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/meson/axg-fifo.h b/sound/soc/meson/axg-fifo.h
+index b63acd723c87..6968276f4ba1 100644
+--- a/sound/soc/meson/axg-fifo.h
++++ b/sound/soc/meson/axg-fifo.h
+@@ -21,8 +21,7 @@ struct snd_soc_dai_driver;
+ struct snd_soc_pcm_runtime;
+ 
+ #define AXG_FIFO_CH_MAX			128
+-#define AXG_FIFO_RATES			(SNDRV_PCM_RATE_5512 |		\
+-					 SNDRV_PCM_RATE_8000_192000)
++
+ #define AXG_FIFO_FORMATS		(SNDRV_PCM_FMTBIT_S8 |		\
+ 					 SNDRV_PCM_FMTBIT_S16_LE |	\
+ 					 SNDRV_PCM_FMTBIT_S20_LE |	\
+diff --git a/sound/soc/meson/axg-frddr.c b/sound/soc/meson/axg-frddr.c
+index 8c166a5f338c..98140f449eb3 100644
+--- a/sound/soc/meson/axg-frddr.c
++++ b/sound/soc/meson/axg-frddr.c
+@@ -109,7 +109,9 @@ static struct snd_soc_dai_driver axg_frddr_dai_drv = {
+ 		.stream_name	= "Playback",
+ 		.channels_min	= 1,
+ 		.channels_max	= AXG_FIFO_CH_MAX,
+-		.rates		= AXG_FIFO_RATES,
++		.rates		= SNDRV_PCM_RATE_CONTINUOUS,
++		.rate_min	= 5515,
++		.rate_max	= 384000,
+ 		.formats	= AXG_FIFO_FORMATS,
+ 	},
+ 	.ops		= &axg_frddr_ops,
+@@ -184,7 +186,9 @@ static struct snd_soc_dai_driver g12a_frddr_dai_drv = {
+ 		.stream_name	= "Playback",
+ 		.channels_min	= 1,
+ 		.channels_max	= AXG_FIFO_CH_MAX,
+-		.rates		= AXG_FIFO_RATES,
++		.rates		= SNDRV_PCM_RATE_CONTINUOUS,
++		.rate_min	= 5515,
++		.rate_max	= 384000,
+ 		.formats	= AXG_FIFO_FORMATS,
+ 	},
+ 	.ops		= &g12a_frddr_ops,
+diff --git a/sound/soc/meson/axg-toddr.c b/sound/soc/meson/axg-toddr.c
+index 1a0be177b8fe..32ee45cce7f8 100644
+--- a/sound/soc/meson/axg-toddr.c
++++ b/sound/soc/meson/axg-toddr.c
+@@ -131,7 +131,9 @@ static struct snd_soc_dai_driver axg_toddr_dai_drv = {
+ 		.stream_name	= "Capture",
+ 		.channels_min	= 1,
+ 		.channels_max	= AXG_FIFO_CH_MAX,
+-		.rates		= AXG_FIFO_RATES,
++		.rates		= SNDRV_PCM_RATE_CONTINUOUS,
++		.rate_min	= 5515,
++		.rate_max	= 384000,
+ 		.formats	= AXG_FIFO_FORMATS,
+ 	},
+ 	.ops		= &axg_toddr_ops,
+@@ -226,7 +228,9 @@ static struct snd_soc_dai_driver g12a_toddr_dai_drv = {
+ 		.stream_name	= "Capture",
+ 		.channels_min	= 1,
+ 		.channels_max	= AXG_FIFO_CH_MAX,
+-		.rates		= AXG_FIFO_RATES,
++		.rates		= SNDRV_PCM_RATE_CONTINUOUS,
++		.rate_min	= 5515,
++		.rate_max	= 384000,
+ 		.formats	= AXG_FIFO_FORMATS,
+ 	},
+ 	.ops		= &g12a_toddr_ops,
+-- 
+2.34.1
+
